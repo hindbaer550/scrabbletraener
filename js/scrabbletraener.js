@@ -270,9 +270,10 @@ function freshStats() {
   return {
     anagram: { racks: 0, found: 0, missed: 0, perAlpha: {} },
     miniord: { right: 0, wrong: 0 }, // ældre fane, beholdes for gammel statistik
-    lister: { right: 0, wrong: 0, bestStreak: 0, perList: {} },
+    lister: { right: 0, wrong: 0, bestStreak: 0, perList: {}, anFound: 0, anMissed: 0 },
     kroge: { rounds: 0, hits: 0, misses: 0, wrong: 0, points: 0, bestStreak: 0, review: {} }, // Hooks
     turnering: { runs: [], best: {} },
+    venner: { runs: [] }, // dyst mod en ven
   };
 }
 function loadStats() {
@@ -556,21 +557,26 @@ $("an-next").addEventListener("click", () => anNext());
 for (const id of ["an-len", "an-band", "an-mode"]) $(id).addEventListener("change", () => anNext());
 
 /* ============================================================
-   TURNERING — racks på tid med point og rekorder
+   DYST — racks på tid, mod dig selv eller mod en ven på samme skærm
+   Point: 1 pr. fundet ord · +1 bonus for at finde alle ord i racket.
+   Mod en ven får begge spillere det samme rack efter tur (racket er skjult for
+   den anden), og hvem der starter, skifter fra rack til rack.
    ============================================================ */
 const tu = {
-  running: false, cfg: null, groups: [], i: 0, score: 0, results: [],
+  running: false, cfg: null, groups: [], i: 0, players: [], order: [], turn: 0,
   group: null, found: new Set(), ended: false, remaining: 0, endAt: 0, timer: null, paused: false,
 };
 const tuRack = setupRack($("tu-rack"), $("tu-form"), $("tu-input"));
+let tuMode = "solo";
 
 function tuReadCfg() {
   return {
-    rounds: +$("tu-rounds").value, time: +$("tu-time").value,
+    mode: tuMode, rounds: +$("tu-rounds").value, time: +$("tu-time").value,
     len: $("tu-len").value, band: $("tu-band").value,
   };
 }
-const tuKey = (c) => `${c.rounds}-${c.time}-${c.len}-${c.band}`;
+// "v2": nyt, enklere pointsystem — gamle rekorder (10 pr. ord + tidsbonus) blandes ikke ind
+const tuKey = (c) => `v2-${c.rounds}-${c.time}-${c.len}-${c.band}`;
 function tuLabel(c) {
   const len = c.len === "78" ? "7+8" : c.len;
   const band = {
@@ -582,8 +588,34 @@ function tuLabel(c) {
 function fmtDate(t) {
   return new Date(t).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" });
 }
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const rackPoints = (found, total) => found + (total && found === total ? 1 : 0);
+// dansk ejefald: "Bos tur", men "Anders' tur"
+const genitive = (name) => (/[sxz]$/i.test(name) ? `${name}'` : `${name}s`);
+
+function tuSetMode(mode) {
+  tuMode = mode;
+  for (const b of document.querySelectorAll("#tu-setup .segmented [data-mode]"))
+    b.setAttribute("aria-checked", b.dataset.mode === mode);
+  const friend = mode === "friend";
+  $("tu-title").textContent = friend ? "Dyst mod en ven" : "Dyst mod dig selv";
+  $("tu-intro").textContent = friend
+    ? "I skiftes på samme skærm og får de samme racks. Mens den ene spiller, kigger den anden væk — bagefter ser I begges ord."
+    : "Slå din egen rekord: et antal racks, hvor uret tæller ned — ligesom ved brættet. Missede racks kommer med i dine gentagelser.";
+  $("tu-names").hidden = !friend;
+  tuShowBest();
+}
+for (const b of document.querySelectorAll("#tu-setup .segmented [data-mode]"))
+  b.addEventListener("click", () => tuSetMode(b.dataset.mode));
 
 function tuShowBest() {
+  if (tuMode === "friend") {
+    const last = stats.venner.runs[0];
+    $("tu-best").innerHTML = last
+      ? `Sidste dyst: ${last.players.map((p) => `${esc(p.name)} ${p.score}`).join(" – ")} (${fmtDate(last.date)}).`
+      : "";
+    return;
+  }
   const best = stats.turnering.best[tuKey(tuReadCfg())];
   $("tu-best").textContent = best
     ? `Din rekord med disse indstillinger: ${best.score} point (${fmtDate(best.date)}).`
@@ -592,7 +624,16 @@ function tuShowBest() {
 for (const id of ["tu-rounds", "tu-time", "tu-len", "tu-band"]) $(id).addEventListener("change", tuShowBest);
 
 function tuShow(part) {
-  for (const p of ["setup", "play", "summary"]) $(`tu-${p}`).hidden = p !== part;
+  for (const p of ["setup", "handover", "play", "round", "summary"]) $(`tu-${p}`).hidden = p !== part;
+}
+
+function scorelineHTML() {
+  if (tu.players.length < 2) return "";
+  const [a, b] = tu.players;
+  const lead = a.score === b.score ? -1 : a.score > b.score ? 0 : 1;
+  return tu.players.map((p, i) =>
+    `<span class="sl-player${i === lead ? " lead" : ""}"><span class="sl-name">${esc(p.name)}</span> <span class="sl-score">${p.score}</span></span>`)
+    .join('<span class="sl-sep">–</span>');
 }
 
 function tuStart() {
@@ -608,13 +649,36 @@ function tuStart() {
     const len = cfg.len === "78" ? (Math.random() < 0.5 ? 7 : 8) : +cfg.len;
     groups.push(pickFromBand(len, cfg.band));
   }
-  Object.assign(tu, { running: true, cfg, groups, i: 0, score: 0, results: [], paused: false });
-  tuShow("play");
-  tuShowRack();
+  const names = cfg.mode === "friend"
+    ? [$("tu-p1").value.trim() || "Spiller 1", $("tu-p2").value.trim() || "Spiller 2"]
+    : ["Dig"];
+  const players = names.map((name) => ({ name, score: 0, results: [] }));
+  Object.assign(tu, { running: true, cfg, groups, i: 0, players, paused: false });
+  tuStartRound();
 }
 
-function tuShowRack() {
+function tuStartRound() {
   tu.group = tu.groups[tu.i];
+  // mod en ven skifter startspilleren fra rack til rack
+  tu.order = tu.players.length === 2 ? (tu.i % 2 ? [1, 0] : [0, 1]) : [0];
+  tu.turn = 0;
+  tu.players.length === 2 ? tuHandover() : tuPlayTurn();
+}
+
+const tuCurrent = () => tu.players[tu.order[tu.turn]];
+
+function tuHandover() {
+  tuShow("handover");
+  const p = tuCurrent();
+  $("tu-ho-progress").innerHTML = `Rack <b>${tu.i + 1}</b> af ${tu.groups.length}`;
+  $("tu-ho-title").textContent = `${genitive(p.name)} tur`;
+  $("tu-ho-score").innerHTML = scorelineHTML();
+  focusQuiet($("tu-ready"));
+}
+$("tu-ready").addEventListener("click", tuPlayTurn);
+
+function tuPlayTurn() {
+  tuShow("play");
   tu.found = new Set();
   tu.ended = false;
   tu.remaining = tu.cfg.time;
@@ -632,8 +696,11 @@ function tuShowRack() {
 }
 
 function tuUpdate() {
-  $("tu-progress").innerHTML = `Rack <b>${tu.i + 1}</b> af ${tu.groups.length}`;
-  $("tu-score").textContent = `${tu.score} p`;
+  const p = tuCurrent();
+  const who = tu.players.length === 2 ? ` · <b>${esc(p.name)}</b>` : "";
+  $("tu-progress").innerHTML = `Rack <b>${tu.i + 1}</b> af ${tu.groups.length}${who}`;
+  // under spillet tæller hvert fundet ord med med det samme; bonus lægges til, når racket er slut
+  $("tu-score").textContent = `${tu.ended ? p.score : p.score + tu.found.size} p`;
   $("tu-info").innerHTML = `<b>${tu.found.size} af ${tu.group.words.length}</b> ord fundet`;
   $("tu-timer").textContent = fmtTime(Math.max(0, tu.remaining));
   $("tu-timebar").style.width = `${(100 * Math.max(0, tu.remaining)) / tu.cfg.time}%`;
@@ -646,11 +713,11 @@ function tuRunClock() {
   tu.timer = setInterval(() => {
     tu.remaining = Math.ceil((tu.endAt - Date.now()) / 1000);
     tuUpdate();
-    if (tu.remaining <= 0) tuEndRack(false, "Tiden er gået!");
+    if (tu.remaining <= 0) tuEndRack("Tiden er gået!");
   }, 200);
 }
 function tuPause() {
-  if (!tu.running || tu.ended || tu.paused) return;
+  if (!tu.running || tu.ended || tu.paused || $("tu-play").hidden) return;
   clearInterval(tu.timer);
   tu.paused = true;
 }
@@ -666,7 +733,7 @@ document.addEventListener("visibilitychange", () => {
 $("tu-form").addEventListener("submit", (e) => {
   e.preventDefault();
   if (!tu.running) return;
-  if (tu.ended) return tuAdvance(); // Enter = næste rack
+  if (tu.ended) return tuAdvance(); // Enter = videre
   const w = $("tu-input").value.trim().toLowerCase();
   tuRack.clear();
   if (!w) return;
@@ -678,67 +745,132 @@ $("tu-form").addEventListener("submit", (e) => {
     return;
   }
   tu.found.add(w);
-  tu.score += 10;
-  stats.anagram.found++;
-  fb.textContent = `“${w.toUpperCase()}” — +10 point`;
+  if (tu.players.length === 1) stats.anagram.found++;
+  fb.textContent = `“${w.toUpperCase()}” — +1 point`;
   fb.className = "feedback good";
   $("tu-found").innerHTML = wordRowsHTML(tu.found, []);
   tuUpdate();
-  if (tu.found.size === tu.group.words.length) {
-    const bonus = Math.max(0, tu.remaining);
-    tu.score += bonus;
-    tuEndRack(true, `Alle ord fundet! +${bonus} bonuspoint for tiden.`);
-  }
+  if (tu.found.size === tu.group.words.length) tuEndRack("Alle ord fundet! +1 bonuspoint.");
 });
 
-function tuEndRack(solved, message) {
+function tuEndRack(message) {
   if (tu.ended) return;
   tu.ended = true;
   clearInterval(tu.timer);
   $("tu-input").readOnly = true;
+  const p = tuCurrent();
+  const total = tu.group.words.length;
+  const pts = rackPoints(tu.found.size, total);
+  p.score += pts;
+  p.results[tu.i] = { found: [...tu.found], pts };
   const missing = tu.group.words.filter((w) => !tu.found.has(w));
-  tu.results.push({ alpha: tu.group.alpha, found: [...tu.found], missing, total: tu.group.words.length });
-  recordRack(tu.group.alpha, missing.length);
   const fb = $("tu-feedback");
-  fb.textContent = message + (missing.length ? ` Du manglede ${missing.length} ord.` : "");
-  fb.className = "feedback " + (solved ? "good" : "bad");
-  $("tu-found").innerHTML = wordRowsHTML(tu.found, missing);
+  fb.className = "feedback " + (missing.length ? "bad" : "good");
   $("tu-skip").hidden = true;
   $("tu-next").hidden = false;
-  $("tu-next").textContent = tu.i + 1 < tu.groups.length ? "Næste rack →" : "Se resultat →";
+
+  if (tu.players.length === 1) {
+    recordRack(tu.group.alpha, missing.length);
+    fb.textContent = `${message} ${tu.found.size} af ${total} ord · +${pts} point.`;
+    $("tu-found").innerHTML = wordRowsHTML(tu.found, missing);
+    $("tu-next").textContent = tu.i + 1 < tu.groups.length ? "Næste rack →" : "Se resultat →";
+  } else {
+    // mod en ven: vis ikke de manglende ord — den anden skal have samme rack
+    fb.textContent = `${message} Du fandt ${tu.found.size} af ${total} ord · +${pts} point.`;
+    const next = tu.turn + 1 < tu.order.length ? tu.players[tu.order[tu.turn + 1]] : null;
+    $("tu-next").textContent = next ? `Giv skærmen til ${next.name} →` : "Se runden →";
+  }
   tuUpdate();
   focusQuiet($("tu-next"));
 }
 
 function tuAdvance() {
-  tu.i++;
-  if (tu.i < tu.groups.length) tuShowRack(); else tuFinish();
+  if (tu.players.length === 2) {
+    tu.turn++;
+    if (tu.turn < tu.order.length) return tuHandover();
+    return tuShowRound();
+  }
+  tuNextRack();
 }
+
+function tuNextRack() {
+  tu.i++;
+  if (tu.i < tu.groups.length) tuStartRound(); else tuFinish();
+}
+
+// Efter begge har spillet racket: hvem fandt hvad?
+function tuShowRound() {
+  tuShow("round");
+  const [a, b] = tu.players;
+  const ra = a.results[tu.i], rb = b.results[tu.i];
+  $("tu-rd-progress").innerHTML = `Rack <b>${tu.i + 1}</b> af ${tu.groups.length} · ${esc(a.name)} +${ra.pts}, ${esc(b.name)} +${rb.pts}`;
+  $("tu-rd-score").innerHTML = scorelineHTML();
+  $("tu-rd-rack").innerHTML = wordTilesHTML(tu.group.alpha, "");
+  const mark = (r, w, name) => r.found.includes(w)
+    ? `<span class="who hit" title="${esc(name)} fandt det">${esc(name)} ✓</span>`
+    : `<span class="who miss">${esc(name)} –</span>`;
+  const render = () => {
+    $("tu-rd-words").innerHTML = `<div class="found">${[...tu.group.words].sort().map((w) =>
+      `<div class="found-word${ra.found.includes(w) || rb.found.includes(w) ? "" : " missed"}">${wordTilesHTML(w)}` +
+      `<span class="pts">${mark(ra, w, a.name)} ${mark(rb, w, b.name)}</span>${lemmaNote(w)}</div>`).join("")}</div>`;
+  };
+  render();
+  loadInfo().then(render, () => {});
+  $("tu-rd-next").textContent = tu.i + 1 < tu.groups.length ? "Næste rack →" : "Se resultat →";
+  focusQuiet($("tu-rd-next"));
+}
+$("tu-rd-next").addEventListener("click", tuNextRack);
 
 function tuFinish() {
   tu.running = false;
-  const found = tu.results.reduce((s, r) => s + r.found.length, 0);
-  const total = tu.results.reduce((s, r) => s + r.total, 0);
-  const solved = tu.results.filter((r) => !r.missing.length).length;
-  const key = tuKey(tu.cfg);
-  const run = { date: Date.now(), key, label: tuLabel(tu.cfg), score: tu.score, found, total, solved, racks: tu.results.length };
-  const prev = stats.turnering.best[key];
-  const record = !prev || run.score > prev.score;
-  if (record) stats.turnering.best[key] = { score: run.score, date: run.date };
-  stats.turnering.runs.unshift(run);
-  stats.turnering.runs.length = Math.min(stats.turnering.runs.length, 30);
-  saveStats();
+  const totalWords = tu.groups.reduce((s, g) => s + g.words.length, 0);
+  const summary = (p) => {
+    const found = p.results.reduce((s, r) => s + r.found.length, 0);
+    const solved = p.results.filter((r, i) => r.found.length === tu.groups[i].words.length).length;
+    return { found, solved };
+  };
 
-  $("tu-sum-title").textContent = record && prev ? "Ny rekord!" : "Resultat";
-  $("tu-sum-grid").innerHTML = [
-    ["Point", tu.score],
-    ["Ord fundet", `${found} / ${total}`],
-    ["Løste racks", `${solved} / ${tu.results.length}`],
-    ["Rekord", record ? tu.score : prev.score],
-  ].map(([lbl, num]) => `<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
-  $("tu-sum-racks").innerHTML = tu.results.map((r) =>
-    `<div class="weakrow"><span class="alpha">${r.alpha}</span>
-     <span class="meta">${r.found.length}/${r.total} ord${r.missing.length ? " · manglede " + r.missing.map((w) => w.toUpperCase()).join(", ") : " · løst"}</span></div>`).join("");
+  if (tu.players.length === 1) {
+    const p = tu.players[0], { found, solved } = summary(p);
+    const key = tuKey(tu.cfg);
+    const run = { date: Date.now(), key, label: tuLabel(tu.cfg), score: p.score, found, total: totalWords, solved, racks: tu.groups.length };
+    const prev = stats.turnering.best[key];
+    const record = !prev || run.score > prev.score;
+    if (record) stats.turnering.best[key] = { score: run.score, date: run.date };
+    stats.turnering.runs.unshift(run);
+    stats.turnering.runs.length = Math.min(stats.turnering.runs.length, 30);
+    saveStats();
+    $("tu-sum-title").textContent = record && prev ? "Ny rekord!" : "Resultat";
+    $("tu-sum-grid").innerHTML = [
+      ["Point", p.score],
+      ["Ord fundet", `${found} / ${totalWords}`],
+      ["Løste racks", `${solved} / ${tu.groups.length}`],
+      ["Rekord", record ? p.score : prev.score],
+    ].map(([lbl, num]) => `<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
+    $("tu-sum-racks").innerHTML = tu.groups.map((g, i) => {
+      const r = p.results[i], miss = g.words.filter((w) => !r.found.includes(w));
+      return `<div class="weakrow"><span class="alpha">${g.alpha}</span>
+        <span class="meta">${r.found.length}/${g.words.length} ord · +${r.pts} p${miss.length ? " · manglede " + miss.map((w) => w.toUpperCase()).join(", ") : " · løst"}</span></div>`;
+    }).join("");
+  } else {
+    const [a, b] = tu.players;
+    const winner = a.score === b.score ? null : a.score > b.score ? a : b;
+    stats.venner.runs.unshift({
+      date: Date.now(), label: tuLabel(tu.cfg),
+      players: tu.players.map((p) => ({ name: p.name, score: p.score })),
+    });
+    stats.venner.runs.length = Math.min(stats.venner.runs.length, 30);
+    saveStats();
+    $("tu-sum-title").textContent = winner ? `${winner.name} vinder!` : "Uafgjort!";
+    $("tu-sum-grid").innerHTML = tu.players.map((p) => {
+      const { found, solved } = summary(p);
+      return `<div class="stat${p === winner ? " winner" : ""}"><div class="num">${p.score}</div>
+        <div class="lbl">${esc(p.name)} · ${found}/${totalWords} ord · ${solved} løste racks</div></div>`;
+    }).join("");
+    $("tu-sum-racks").innerHTML = tu.groups.map((g, i) =>
+      `<div class="weakrow"><span class="alpha">${g.alpha}</span>
+       <span class="meta">${tu.players.map((p) => `${esc(p.name)} ${p.results[i].found.length}/${g.words.length}`).join(" · ")}</span></div>`).join("");
+  }
   tuShow("summary");
   focusQuiet($("tu-again"));
 }
@@ -750,19 +882,30 @@ function tuStop() {
   tuShowBest();
 }
 
+// "Spil igen" mod en ven: den anden spiller starter næste gang
+$("tu-again").addEventListener("click", () => {
+  if (tuMode === "friend") {
+    const p1 = $("tu-p1").value;
+    $("tu-p1").value = $("tu-p2").value;
+    $("tu-p2").value = p1;
+  }
+  tuStart();
+});
 $("tu-start").addEventListener("click", tuStart);
-$("tu-again").addEventListener("click", tuStart);
 $("tu-setup-btn").addEventListener("click", tuStop);
-$("tu-skip").addEventListener("click", () => tuEndRack(false, "Rack opgivet."));
+$("tu-skip").addEventListener("click", () => tuEndRack("Rack opgivet."));
 $("tu-next").addEventListener("click", tuAdvance);
-$("tu-quit").addEventListener("click", () => { if (confirm("Afbryd dysten? Resultatet gemmes ikke.")) tuStop(); });
+const tuQuit = () => { if (confirm("Afbryd dysten? Resultatet gemmes ikke.")) tuStop(); };
+$("tu-quit").addEventListener("click", tuQuit);
+$("tu-rd-quit").addEventListener("click", tuQuit);
+tuSetMode("solo");
 
 /* ============================================================
    ORDLISTER — står ordet på listen? Quiz i foreningens egne ordlister
    (scrabbleforening.wordpress.com/ordlister, hentet med tools/fetch_dsf_lists.py)
    ============================================================ */
 const ol = stats.lister;
-Object.assign(ol, { right: 0, wrong: 0, bestStreak: 0, perList: {}, ...ol });
+Object.assign(ol, { right: 0, wrong: 0, bestStreak: 0, perList: {}, anFound: 0, anMissed: 0, ...ol });
 const VOWELS = "aeiouyæøå", CONSONANTS = "bdfghjklmnprstv";
 let olLists = null, olCur = null, olLocked = false, olStreak = 0;
 
@@ -802,16 +945,26 @@ function olFake(list) {
   return null;
 }
 
+function olPickList() {
+  const sel = $("ol-list").value;
+  return olLists[sel === "" ? Math.floor(Math.random() * olLists.length) : +sel];
+}
+const olShowName = (list) =>
+  ($("ol-name").innerHTML = `Liste: <a href="${list.url}" target="_blank" rel="noopener">${list.name}</a>`);
+
 function olNext() {
   if (!olLists) return;
+  const anagram = $("ol-mode").value === "an";
+  $("ol-jn").hidden = anagram;
+  $("ol-an").hidden = !anagram;
+  if (anagram) return olAnNext();
   olLocked = false;
-  const sel = $("ol-list").value;
-  const list = olLists[sel === "" ? Math.floor(Math.random() * olLists.length) : +sel];
+  const list = olPickList();
   let word = null, onList = Math.random() < 0.5;
   if (!onList) word = olFake(list);
   if (!word) { onList = true; word = list.words[Math.floor(Math.random() * list.words.length)]; }
   olCur = { list, word, onList };
-  $("ol-name").innerHTML = `Liste: <a href="${list.url}" target="_blank" rel="noopener">${list.name}</a>`;
+  olShowName(list);
   $("ol-word").innerHTML = wordTilesHTML(word, word.length > 8 ? "small" : "");
   $("ol-word").style.setProperty("--n", word.length); // mobil: brikkerne skaleres, så ordet står på én linje
   $("ol-feedback").textContent = " ";
@@ -820,7 +973,9 @@ function olNext() {
 }
 
 function olUpdateMeta() {
-  $("ol-score").textContent = `${ol.right} / ${ol.right + ol.wrong}`;
+  $("ol-score").textContent = $("ol-mode").value === "an"
+    ? `${ol.anFound} ord`
+    : `${ol.right} / ${ol.right + ol.wrong}`;
   $("ol-streak").textContent = olStreak >= 3 ? `${olStreak} i træk` : "";
 }
 
@@ -848,8 +1003,90 @@ function olAnswer(saidYes) {
 $("ol-yes").addEventListener("click", () => olAnswer(true));
 $("ol-no").addEventListener("click", () => olAnswer(false));
 $("ol-list").addEventListener("change", olNext);
+$("ol-mode").addEventListener("change", olNext);
+
+/* --- Ordlister som anagrammer: find listens ord med de viste bogstaver --- */
+const olAnRack = setupRack($("ol-an-rack"), $("ol-an-form"), $("ol-an-input"));
+let olAn = null;
+
+function olAnNext() {
+  const list = olPickList();
+  if (!list.byAlpha) {
+    list.byAlpha = new Map();
+    for (const w of list.words) {
+      const a = alphagram(w);
+      if (!list.byAlpha.has(a)) list.byAlpha.set(a, []);
+      list.byAlpha.get(a).push(w);
+    }
+  }
+  const longer = list.words.filter((w) => w.length >= 3); // 2 bogstaver er for let — undtagen på 2-bogstavslisten
+  const pool = longer.length ? longer : list.words;
+  const alpha = alphagram(pool[Math.floor(Math.random() * pool.length)]);
+  olAn = { list, alpha, words: list.byAlpha.get(alpha), found: new Set(), done: false };
+  olShowName(list);
+  $("ol-an-input").readOnly = false;
+  olAnRack.set(alpha);
+  olAnRack.clear();
+  $("ol-an-found").innerHTML = "";
+  $("ol-an-feedback").textContent = " ";
+  $("ol-an-feedback").className = "feedback";
+  olAnInfo();
+  olUpdateMeta();
+  focusQuiet($("ol-an-input"));
+}
+
+function olAnInfo() {
+  const n = olAn.words.length;
+  $("ol-an-info").innerHTML = `Find ${n === 1 ? "ordet" : `de ${n} ord`} fra listen med præcis disse bogstaver: <b>${olAn.found.size} af ${n}</b> fundet`;
+}
+
+function olAnFinish() {
+  olAn.done = true;
+  $("ol-an-input").readOnly = true;
+  const missing = olAn.words.filter((w) => !olAn.found.has(w));
+  ol.anMissed += missing.length;
+  saveStats();
+  const fb = $("ol-an-feedback");
+  fb.textContent = missing.length ? `Du manglede ${missing.length} ord (vist med rødt).` : "Alle ord fundet!";
+  fb.className = "feedback " + (missing.length ? "bad" : "good");
+  const render = () => { $("ol-an-found").innerHTML = wordRowsHTML(olAn.found, missing); };
+  render();
+  loadInfo().then(render, () => {});
+  focusQuiet($("ol-an-next"));
+}
+
+$("ol-an-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!olAn) return;
+  if (olAn.done) return olAnNext(); // Enter = næste
+  const w = $("ol-an-input").value.trim().toLowerCase();
+  olAnRack.clear();
+  if (!w) return;
+  const fb = $("ol-an-feedback"), W = `“${w.toUpperCase()}”`;
+  let msg = null, cls = "bad";
+  if (alphagram(w) !== olAn.alpha) msg = `${W} bruger ikke præcis de viste bogstaver`;
+  else if (olAn.found.has(w)) { msg = `${W} er allerede fundet`; cls = ""; }
+  else if (!olAn.words.includes(w))
+    msg = dict.words.has(w) ? `${W} er et gyldigt ord, men står ikke på denne liste` : `${W} står ikke på listen`;
+  if (msg) {
+    fb.textContent = msg;
+    fb.className = "feedback " + cls;
+    return;
+  }
+  olAn.found.add(w);
+  ol.anFound++;
+  saveStats();
+  fb.textContent = `${W} — rigtigt!`;
+  fb.className = "feedback good";
+  $("ol-an-found").innerHTML = wordRowsHTML(olAn.found, []);
+  olAnInfo();
+  olUpdateMeta();
+  if (olAn.found.size === olAn.words.length) olAnFinish();
+});
+$("ol-an-reveal").addEventListener("click", () => { if (olAn && !olAn.done) olAnFinish(); });
+$("ol-an-next").addEventListener("click", olAnNext);
 document.addEventListener("keydown", (e) => {
-  if ($("view-lister").hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  if ($("view-lister").hidden || $("ol-jn").hidden || e.metaKey || e.ctrlKey || e.altKey) return;
   if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
   if (e.key === "j" || e.key === "J") olAnswer(true);
   if (e.key === "n" || e.key === "N") olAnswer(false);
@@ -1152,6 +1389,7 @@ function renderStats() {
     ["Ordlister rigtige", `${m.right} / ${m.right + m.wrong}`],
     ["Ordlister-træfsikkerhed", pct(m.right, m.right + m.wrong)],
     ["Bedste stime i Ordlister", m.bestStreak || 0],
+    ["Ordliste-anagrammer", `${m.anFound || 0} fundet · ${pct(m.anFound || 0, (m.anFound || 0) + (m.anMissed || 0))}`],
     ["Hooks-runder", k.rounds],
     ["Hooks-træfsikkerhed", pct(k.hits, k.hits + k.misses + (k.wrong || 0))],
     ["Hooks-point", k.points || 0],
@@ -1174,13 +1412,18 @@ function renderStats() {
      <span class="meta">niveau ${s.box}/5 · ${describeDue(s)} · ${s.missed} misset i alt ·
      ${(dict.anagrams.get(alpha) || []).length} mulige ord</span></div>`).join("");
 
+  const friendRuns = stats.venner.runs.slice(0, 5).map((r) =>
+    `<div class="weakrow"><span class="alpha">${r.players.map((p) => p.score).join("–")}</span>
+     <span class="meta">${fmtDate(r.date)} · ${r.players.map((p) => esc(p.name)).join(" mod ")} · ${r.label}</span></div>`).join("");
   const runs = stats.turnering.runs;
-  $("st-tour").innerHTML = runs.length
-    ? runs.slice(0, 8).map((r) =>
-        `<div class="weakrow"><span class="alpha">${r.score} p</span>
-         <span class="meta">${fmtDate(r.date)} · ${r.label} · ${r.found}/${r.total} ord · ${r.solved}/${r.racks} racks løst
-         ${stats.turnering.best[r.key]?.date === r.date ? " · <b>rekord</b>" : ""}</span></div>`).join("")
-    : `<p class="hint">Ingen dyster endnu — prøv fanen “Dyst mod dig selv”.</p>`;
+  const soloRuns = runs.slice(0, 8).map((r) =>
+    `<div class="weakrow"><span class="alpha">${r.score} p</span>
+     <span class="meta">${fmtDate(r.date)} · ${r.label} · ${r.found}/${r.total} ord · ${r.solved}/${r.racks} racks løst
+     ${stats.turnering.best[r.key]?.date === r.date ? " · <b>rekord</b>" : ""}</span></div>`).join("");
+  $("st-tour").innerHTML = soloRuns || friendRuns
+    ? (soloRuns ? `<p class="hint">Mod dig selv</p>${soloRuns}` : "") +
+      (friendRuns ? `<p class="hint">Mod en ven</p>${friendRuns}` : "")
+    : `<p class="hint">Ingen dyster endnu — prøv fanen “Dyst”.</p>`;
 }
 $("st-reset").addEventListener("click", () => {
   if (!confirm("Nulstil al statistik, gentagelser og rekorder?")) return;

@@ -150,6 +150,24 @@
 .st-app .chip.hit { background: #e2f2e6; color: var(--good); }
 .st-app .chip.miss { background: #fbeae9; color: var(--bad); }
 .st-app .chip.wrong { background: #f2f2f2; color: #999; text-decoration: line-through; }
+.st-app .segmented { display: inline-flex; border: 1px solid var(--accent); border-radius: 10px; overflow: hidden; margin-bottom: 14px; }
+.st-app .segmented button {
+  border: 0; background: #fff; color: var(--accent); padding: 8px 16px; font: inherit; font-size: .95rem; cursor: pointer;
+}
+.st-app .segmented button[aria-checked="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+.st-app .rules { margin: 6px 0 14px; font-size: .95rem; }
+.st-app input[type="text"].name-input { text-transform: none; letter-spacing: normal; font-size: 1rem; padding: 8px 10px; width: 180px; }
+.st-app .handover { text-align: center; padding: 26px 0 10px; }
+.st-app .handover h2 { font-size: 1.8rem; margin: 6px 0 8px; }
+.st-app .center-actions { justify-content: center; }
+.st-app .scoreline { display: flex; justify-content: center; align-items: baseline; gap: 14px; margin: 14px 0; font-size: 1.15rem; }
+.st-app .sl-score { font-size: 1.9rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.st-app .sl-player.lead .sl-name { font-weight: 700; }
+.st-app .sl-sep { color: var(--muted); font-size: 1.5rem; }
+.st-app .who { font-size: .8rem; margin-right: 6px; }
+.st-app .who.hit { color: var(--good); font-weight: 700; }
+.st-app .who.miss { color: var(--muted); }
+.st-app .stat.winner { outline: 3px solid var(--gold); }
 .st-app .hook-word { align-items: center; }
 .st-app .hook-slot { background: transparent; border: 2px dashed var(--tile-edge); color: var(--tile-edge); }
 .st-app .center { text-align: center; }
@@ -342,6 +360,12 @@
 .st-app .chip.hit { background: #dcefe3; color: var(--good); }
 .st-app .chip.miss { background: #f6dede; color: var(--bad); }
 .st-app .chip.wrong { background: #e6e6e6; }
+.st-app .segmented { border-radius: 0; border-color: var(--bar); }
+.st-app .segmented button { font-family: var(--serif); color: var(--bar); background: #fff; }
+.st-app .segmented button[aria-checked="true"] { background: var(--bar); color: #fff; font-weight: 400; }
+.st-app .handover h2 { font-family: var(--slab); font-weight: 300; color: var(--heading); }
+.st-app .sl-score { font-family: var(--slab); font-weight: 400; color: var(--heading); }
+.st-app .stat.winner { outline: 2px solid var(--link); }
 .st-app .hook-slot { background: transparent; border: 2px dashed #b9ab86; border-radius: 3px; color: #b9ab86; }
 .st-app .hook-side { border-radius: 0; border-width: 1px; border-color: transparent; background: transparent; }
 .st-app .hook-side.active { border-color: var(--bar); background: #fff; }

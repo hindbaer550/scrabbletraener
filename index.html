@@ -35,7 +35,7 @@
   </div>
   <nav id="st-nav" role="tablist" aria-label="Træningsformer">
     <button role="tab" id="tab-anagram" data-view="anagram" aria-controls="view-anagram" aria-selected="true" class="active">Anagramjagt</button>
-    <button role="tab" id="tab-turnering" data-view="turnering" aria-controls="view-turnering" aria-selected="false" tabindex="-1">Dyst mod dig selv</button>
+    <button role="tab" id="tab-turnering" data-view="turnering" aria-controls="view-turnering" aria-selected="false" tabindex="-1">Dyst</button>
     <button role="tab" id="tab-lister" data-view="lister" aria-controls="view-lister" aria-selected="false" tabindex="-1">Ordlister</button>
     <button role="tab" id="tab-hooks" data-view="hooks" aria-controls="view-hooks" aria-selected="false" tabindex="-1">Hooks</button>
     <button role="tab" id="tab-dommer" data-view="dommer" aria-controls="view-dommer" aria-selected="false" tabindex="-1">Orddommer</button>
@@ -102,8 +102,17 @@
   <!-- TURNERING -->
   <section id="view-turnering" class="view panel" role="tabpanel" aria-labelledby="tab-turnering" hidden>
     <div id="tu-setup">
-      <h2>Dyst mod dig selv</h2>
-      <p class="hint">Slå din egen rekord: et antal racks, hvor uret tæller ned — ligesom ved brættet. Du får 10 point pr. fundet ord og bonus for de sekunder, der er tilbage, når du finder alle ord i et rack. Missede racks kommer automatisk med i dine gentagelser.</p>
+      <div class="segmented" role="radiogroup" aria-label="Hvem vil du dyste mod?">
+        <button type="button" role="radio" aria-checked="true" data-mode="solo">Mod dig selv</button>
+        <button type="button" role="radio" aria-checked="false" data-mode="friend">Mod en ven</button>
+      </div>
+      <h2 id="tu-title">Dyst mod dig selv</h2>
+      <p class="hint" id="tu-intro"></p>
+      <p class="rules"><b>Point:</b> 1 point for hvert ord du finder · +1 bonus, hvis du finder dem alle.</p>
+      <div class="toolbar" id="tu-names" hidden>
+        <label>Spiller 1 <input id="tu-p1" class="name-input" type="text" value="Spiller 1" maxlength="20" autocomplete="off"></label>
+        <label>Spiller 2 <input id="tu-p2" class="name-input" type="text" value="Spiller 2" maxlength="20" autocomplete="off"></label>
+      </div>
       <div class="toolbar">
         <label>Racks
           <select id="tu-rounds">
@@ -144,11 +153,33 @@
       </div>
     </div>
 
+    <div id="tu-handover" class="handover" hidden>
+      <p class="progress" id="tu-ho-progress"></p>
+      <h2 id="tu-ho-title"></h2>
+      <p class="hint">Den anden spiller kigger væk. Uret starter, når du trykker.</p>
+      <div class="scoreline" id="tu-ho-score"></div>
+      <div class="actions center-actions">
+        <button id="tu-ready" class="primary">Jeg er klar</button>
+      </div>
+    </div>
+
+    <div id="tu-round" hidden>
+      <p class="progress" id="tu-rd-progress"></p>
+      <div class="scoreline" id="tu-rd-score"></div>
+      <div class="rack" id="tu-rd-rack"></div>
+      <div id="tu-rd-words"></div>
+      <div class="actions">
+        <button id="tu-rd-next" class="primary">Næste rack →</button>
+        <span class="spacer"></span>
+        <button id="tu-rd-quit" class="danger">Afbryd</button>
+      </div>
+    </div>
+
     <div id="tu-play" hidden>
       <div class="toolbar">
         <span class="progress" id="tu-progress"></span>
         <span class="spacer"></span>
-        <span class="score" id="tu-score" aria-label="Point">0</span>
+        <span class="score" id="tu-score" aria-label="Point">0 p</span>
         <span id="tu-timer" class="timer" role="timer" aria-label="Tid tilbage">1:00</span>
       </div>
       <div class="timebar" aria-hidden="true"><div id="tu-timebar"></div></div>
@@ -189,17 +220,40 @@
           <option value="" selected>Tilfældig liste</option>
         </select>
       </label>
+      <label>Øvelse
+        <select id="ol-mode">
+          <option value="jn" selected>Står ordet på listen?</option>
+          <option value="an">Anagrammer</option>
+        </select>
+      </label>
       <span class="spacer"></span>
       <span class="hk-meta"><span id="ol-streak" class="streak" aria-label="Rigtige i træk"></span>
       <span id="ol-score" class="score" aria-label="Rigtige svar">0 / 0</span></span>
     </div>
-    <p class="hint">Står ordet på listen? Listerne er dem fra <a href="https://scrabbleforening.wordpress.com/ordlister/" target="_blank" rel="noopener">foreningens side med ordlister</a>. Svar med knapperne eller tasterne <kbd>J</kbd> (ja) og <kbd>N</kbd> (nej).</p>
     <p class="list-name" id="ol-name" aria-live="polite"></p>
-    <div class="rack big" id="ol-word"></div>
-    <p class="feedback" id="ol-feedback" aria-live="polite">&nbsp;</p>
-    <div class="actions">
-      <button id="ol-yes" class="primary">✓ På listen (J)</button>
-      <button id="ol-no" class="danger">✗ Ikke på listen (N)</button>
+    <div id="ol-jn">
+      <p class="hint">Står ordet på listen? Listerne er dem fra <a href="https://scrabbleforening.wordpress.com/ordlister/" target="_blank" rel="noopener">foreningens side med ordlister</a>. Svar med knapperne eller tasterne <kbd>J</kbd> (ja) og <kbd>N</kbd> (nej).</p>
+      <div class="rack big" id="ol-word"></div>
+      <p class="feedback" id="ol-feedback" aria-live="polite">&nbsp;</p>
+      <div class="actions">
+        <button id="ol-yes" class="primary">✓ På listen (J)</button>
+        <button id="ol-no" class="danger">✗ Ikke på listen (N)</button>
+      </div>
+    </div>
+    <div id="ol-an" hidden>
+      <div class="rack" id="ol-an-rack" role="group" aria-label="Bogstaverne — tryk for at lægge dem"></div>
+      <p class="hint" id="ol-an-info" aria-live="polite"></p>
+      <form id="ol-an-form" class="word-form" autocomplete="off">
+        <input id="ol-an-input" type="text" placeholder="Skriv eller tryk" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
+        <button type="button" class="secondary rack-shuffle" aria-label="Bland brikkerne">Bland</button>
+        <button type="submit" class="primary">Læg</button>
+      </form>
+      <p class="feedback" id="ol-an-feedback" aria-live="polite">&nbsp;</p>
+      <div class="found" id="ol-an-found"></div>
+      <div class="actions">
+        <button id="ol-an-reveal" class="secondary">Vis svar</button>
+        <button id="ol-an-next" class="primary">Næste →</button>
+      </div>
     </div>
   </section>
 
@@ -268,7 +322,7 @@
     <h3>Gentagelser</h3>
     <p class="hint" id="st-review"></p>
     <div id="st-weak"></div>
-    <h3>Dyst mod dig selv</h3>
+    <h3>Dyst</h3>
     <div id="st-tour"></div>
     <div class="actions">
       <button id="st-reset" class="danger">Nulstil statistik</button>
