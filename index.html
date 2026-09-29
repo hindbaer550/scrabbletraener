@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scrabbletræneren · Dansk Scrabble</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23f3e5c0'/><text x='50' y='68' font-size='58' text-anchor='middle' font-family='Georgia' fill='%23222'>Å</text><text x='82' y='88' font-size='24' text-anchor='middle' font-family='Georgia' fill='%23222'>4</text></svg>">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="brand-tiles">
+      <span class="tile mini">T<sub>2</sub></span><span class="tile mini">R<sub>1</sub></span><span class="tile mini">Æ<sub>4</sub></span><span class="tile mini">N<sub>1</sub></span><span class="tile mini">E<sub>1</sub></span><span class="tile mini">R<sub>1</sub></span>
+    </span>
+    <div class="brand-text">
+      <h1>Scrabbletræneren</h1>
+      <p>Træning for danske turneringsspillere · Retskrivningsordbogen (COR 1.5)</p>
+    </div>
+  </div>
+  <nav id="st-nav" role="tablist" aria-label="Træningsformer">
+    <button role="tab" id="tab-anagram" data-view="anagram" aria-controls="view-anagram" aria-selected="true" class="active">Anagramjagt</button>
+    <button role="tab" id="tab-turnering" data-view="turnering" aria-controls="view-turnering" aria-selected="false" tabindex="-1">Turnering</button>
+    <button role="tab" id="tab-miniord" data-view="miniord" aria-controls="view-miniord" aria-selected="false" tabindex="-1">Miniord</button>
+    <button role="tab" id="tab-kroge" data-view="kroge" aria-controls="view-kroge" aria-selected="false" tabindex="-1">Kroge</button>
+    <button role="tab" id="tab-dommer" data-view="dommer" aria-controls="view-dommer" aria-selected="false" tabindex="-1">Orddommer</button>
+    <button role="tab" id="tab-stats" data-view="stats" aria-controls="view-stats" aria-selected="false" tabindex="-1">Statistik</button>
+  </nav>
+</header>
+
+<main>
+  <div id="st-loading" class="panel" role="status">
+    <div class="spinner"></div>
+    <p>Indlæser ordlisten (343.664 ordformer) …</p>
+  </div>
+
+  <!-- ANAGRAMJAGT -->
+  <section id="view-anagram" class="view panel" role="tabpanel" aria-labelledby="tab-anagram" hidden>
+    <div class="toolbar">
+      <label>Længde
+        <select id="an-len">
+          <option value="7" selected>7 bogstaver (bingo)</option>
+          <option value="8">8 bogstaver</option>
+          <option value="6">6 bogstaver</option>
+          <option value="5">5 bogstaver</option>
+        </select>
+      </label>
+      <label>Sandsynlighed
+        <select id="an-band">
+          <option value="0-200">Top 1–200</option>
+          <option value="200-1000" selected>201–1.000</option>
+          <option value="1000-3000">1.001–3.000</option>
+          <option value="3000-8000">3.001–8.000</option>
+          <option value="all">Alle</option>
+        </select>
+      </label>
+      <label>Racks
+        <select id="an-mode">
+          <option value="mix" selected>Nye + gentagelser</option>
+          <option value="review">Kun gentagelser</option>
+          <option value="new">Kun nye</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <span id="an-timer" class="timer" aria-label="Tid brugt">0:00</span>
+    </div>
+
+    <div class="rack" id="an-rack" role="group" aria-label="Dine brikker — tryk for at lægge dem"></div>
+    <p class="hint" id="an-info" aria-live="polite"></p>
+
+    <form id="an-form" class="word-form" autocomplete="off">
+      <input id="an-input" type="text" placeholder="Skriv eller tryk på brikkerne" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
+      <button type="button" class="secondary rack-shuffle" aria-label="Bland brikkerne">Bland</button>
+      <button type="submit" class="primary">Læg</button>
+    </form>
+    <p class="feedback" id="an-feedback" aria-live="polite">&nbsp;</p>
+
+    <div class="found" id="an-found"></div>
+
+    <div class="actions">
+      <button id="an-reveal" class="secondary">Vis svar</button>
+      <button id="an-next" class="primary">Næste rack →</button>
+    </div>
+  </section>
+
+  <!-- TURNERING -->
+  <section id="view-turnering" class="view panel" role="tabpanel" aria-labelledby="tab-turnering" hidden>
+    <div id="tu-setup">
+      <h2>Turneringstræning</h2>
+      <p class="hint">Et antal racks på tid, ligesom ved brættet. Du får 10 point pr. fundet ord og bonus for de sekunder, der er tilbage, når du finder alle ord i et rack. Missede racks kommer automatisk med i dine gentagelser.</p>
+      <div class="toolbar">
+        <label>Racks
+          <select id="tu-rounds">
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="5">5</option>
+          </select>
+        </label>
+        <label>Tid pr. rack
+          <select id="tu-time">
+            <option value="30">30 sek.</option>
+            <option value="60" selected>60 sek.</option>
+            <option value="90">90 sek.</option>
+          </select>
+        </label>
+        <label>Længde
+          <select id="tu-len">
+            <option value="7" selected>7 bogstaver</option>
+            <option value="8">8 bogstaver</option>
+            <option value="78">7 og 8 blandet</option>
+          </select>
+        </label>
+        <label>Sandsynlighed
+          <select id="tu-band">
+            <option value="0-200">Top 1–200</option>
+            <option value="200-1000" selected>201–1.000</option>
+            <option value="1000-3000">1.001–3.000</option>
+            <option value="all">Alle</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint" id="tu-best" aria-live="polite"></p>
+      <div class="actions">
+        <button id="tu-start" class="primary">Start turnering</button>
+      </div>
+    </div>
+
+    <div id="tu-play" hidden>
+      <div class="toolbar">
+        <span class="progress" id="tu-progress"></span>
+        <span class="spacer"></span>
+        <span class="score" id="tu-score" aria-label="Point">0</span>
+        <span id="tu-timer" class="timer" role="timer" aria-label="Tid tilbage">1:00</span>
+      </div>
+      <div class="timebar" aria-hidden="true"><div id="tu-timebar"></div></div>
+      <div class="rack" id="tu-rack" role="group" aria-label="Dine brikker — tryk for at lægge dem"></div>
+      <p class="hint" id="tu-info" aria-live="polite"></p>
+      <form id="tu-form" class="word-form" autocomplete="off">
+        <input id="tu-input" type="text" placeholder="Skriv eller tryk på brikkerne" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
+        <button type="button" class="secondary rack-shuffle" aria-label="Bland brikkerne">Bland</button>
+        <button type="submit" class="primary">Læg</button>
+      </form>
+      <p class="feedback" id="tu-feedback" aria-live="polite">&nbsp;</p>
+      <div class="found" id="tu-found"></div>
+      <div class="actions">
+        <button id="tu-skip" class="secondary">Opgiv rack</button>
+        <button id="tu-next" class="primary" hidden>Næste rack →</button>
+        <span class="spacer"></span>
+        <button id="tu-quit" class="danger">Afbryd</button>
+      </div>
+    </div>
+
+    <div id="tu-summary" hidden>
+      <h2 id="tu-sum-title">Resultat</h2>
+      <div class="statgrid" id="tu-sum-grid"></div>
+      <h3>Racks</h3>
+      <div id="tu-sum-racks"></div>
+      <div class="actions">
+        <button id="tu-again" class="primary">Spil igen</button>
+        <button id="tu-setup-btn" class="secondary">Skift indstillinger</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MINIORD -->
+  <section id="view-miniord" class="view panel" role="tabpanel" aria-labelledby="tab-miniord" hidden>
+    <div class="toolbar">
+      <label>Længde
+        <select id="mo-len">
+          <option value="2">2 bogstaver</option>
+          <option value="3" selected>3 bogstaver</option>
+          <option value="23">2–3 blandet</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <span id="mo-score" class="score" aria-label="Rigtige svar">0 / 0</span>
+    </div>
+    <p class="hint">Er det et gyldigt scrabbleord? Svar med knapperne eller tasterne <kbd>J</kbd> (gyldigt) og <kbd>N</kbd> (ugyldigt).</p>
+    <div class="rack big" id="mo-word"></div>
+    <p class="feedback" id="mo-feedback" aria-live="polite">&nbsp;</p>
+    <div class="actions">
+      <button id="mo-yes" class="primary">✓ Gyldigt (J)</button>
+      <button id="mo-no" class="danger">✗ Ugyldigt (N)</button>
+    </div>
+  </section>
+
+  <!-- KROGE -->
+  <section id="view-kroge" class="view panel" role="tabpanel" aria-labelledby="tab-kroge" hidden>
+    <div class="toolbar">
+      <label>Ordlængde
+        <select id="kr-len">
+          <option value="2" selected>2 bogstaver</option>
+          <option value="3">3 bogstaver</option>
+          <option value="4">4 bogstaver</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+    </div>
+    <p class="hint">Hvilke bogstaver kan sættes <strong>foran</strong> og <strong>bagpå</strong>, så det stadig er et gyldigt ord? Skriv bogstaverne (uden mellemrum) — tomt felt betyder “ingen kroge”.</p>
+    <div class="rack" id="kr-word"></div>
+    <form id="kr-form" autocomplete="off">
+      <div class="hook-row">
+        <label>Foran <input id="kr-front" type="text" aria-describedby="kr-word" spellcheck="false" autocapitalize="off" placeholder="fx bst"></label>
+        <label>Bagpå <input id="kr-back" type="text" spellcheck="false" autocapitalize="off" placeholder="fx dgrs"></label>
+        <button class="primary" type="submit">Tjek</button>
+      </div>
+    </form>
+    <div id="kr-result" aria-live="polite"></div>
+    <div class="actions">
+      <button id="kr-next" class="primary">Næste ord →</button>
+    </div>
+  </section>
+
+  <!-- ORDDOMMER -->
+  <section id="view-dommer" class="view panel" role="tabpanel" aria-labelledby="tab-dommer" hidden>
+    <p class="hint">Slå et ord op og få dommen — med opslagsord og ordklasse fra COR/Retskrivningsordbogen.</p>
+    <form id="do-form" autocomplete="off">
+      <input id="do-input" type="text" placeholder="Skriv et ord …" aria-label="Ord der skal slås op" spellcheck="false" autocapitalize="off">
+      <button type="submit" hidden></button>
+    </form>
+    <div id="do-result" aria-live="polite"></div>
+  </section>
+
+  <!-- STATISTIK -->
+  <section id="view-stats" class="view panel" role="tabpanel" aria-labelledby="tab-stats" hidden>
+    <h2>Din træning</h2>
+    <div class="statgrid" id="st-grid"></div>
+    <h3>Gentagelser</h3>
+    <p class="hint" id="st-review"></p>
+    <div id="st-weak"></div>
+    <h3>Turneringer</h3>
+    <div id="st-tour"></div>
+    <div class="actions">
+      <button id="st-reset" class="danger">Nulstil statistik</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>Uofficiel træner til medlemmer af <a href="https://scrabbleforening.wordpress.com/" target="_blank" rel="noopener">Dansk Scrabble Forening</a>.
+  Ordgrundlag: <a href="https://ordregister.dk/" target="_blank" rel="noopener">Det Centrale Ordregister</a> (CC0) — normerede former + genitiver, afstemt med foreningens officielle 2–4-bogstavslister.</p>
+</footer>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
