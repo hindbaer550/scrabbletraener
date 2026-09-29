@@ -150,6 +150,31 @@
 .st-app .chip.hit { background: #e2f2e6; color: var(--good); }
 .st-app .chip.miss { background: #fbeae9; color: var(--bad); }
 .st-app .chip.wrong { background: #f2f2f2; color: #999; text-decoration: line-through; }
+.st-app .hook-word { align-items: center; }
+.st-app .hook-slot { background: transparent; border: 2px dashed var(--tile-edge); color: var(--tile-edge); }
+.st-app .center { text-align: center; }
+.st-app .hook-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+.st-app .hook-side { border: 2px solid transparent; border-radius: 10px; padding: 8px; }
+.st-app .hook-side.active { border-color: var(--accent); }
+.st-app .hook-label {
+  background: none; border: 0; padding: 0 0 6px; cursor: pointer;
+  font-size: .95rem; font-weight: 700; color: var(--ink);
+}
+.st-app .hook-count { font-weight: 400; color: var(--muted); }
+.st-app .letters { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 4px; }
+.st-app .letter {
+  height: 34px; border-radius: 6px; border: 1px solid var(--line); background: #fff;
+  font: 700 1rem Georgia, serif; text-transform: uppercase; color: var(--ink); cursor: pointer; padding: 0;
+}
+.st-app .letter[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.st-app .letter:disabled { cursor: default; opacity: .45; }
+.st-app .letters .letter.hit { background: var(--good); border-color: var(--good); color: #fff; opacity: 1; }
+.st-app .letters .letter.miss { background: #fff; border: 2px solid var(--good); color: var(--good); opacity: 1; }
+.st-app .letters .letter.wrong { background: var(--bad); border-color: var(--bad); color: #fff; opacity: 1; text-decoration: line-through; }
+.st-app .hk-meta { display: flex; gap: 12px; align-items: baseline; }
+.st-app .streak { color: var(--gold); font-weight: 700; }
+.st-app .found-word .tag { margin-left: 8px; font-size: .8rem; }
+.st-app .missed-text { color: var(--bad); }
 .st-app .verdict { margin-top: 18px; padding: 16px 20px; border-radius: 12px; font-size: 1.05rem; }
 .st-app .verdict.good { background: #e2f2e6; border: 1px solid #bfe2c8; }
 .st-app .verdict.bad { background: #fbeae9; border: 1px solid #eec4c0; }
@@ -176,6 +201,9 @@
   border-radius: 5px; padding: 1px 6px; font-size: .85em;
 }
 @media (max-width: 620px) {
+.st-app .hook-word, .st-app .hook-word .word { flex-wrap: nowrap; gap: 5px; }
+.st-app .rack.big.hook-word .tile { width: 40px; height: 40px; font-size: 1.3rem; }
+.st-app .hook-sides { grid-template-columns: 1fr; }
 .st-app .toolbar { gap: 8px 10px; }
 .st-app .toolbar label { flex: 1 1 40%; min-width: 0; }
 .st-app .toolbar select { width: 100%; }
@@ -306,6 +334,13 @@
 .st-app .chip.hit { background: #dcefe3; color: var(--good); }
 .st-app .chip.miss { background: #f6dede; color: var(--bad); }
 .st-app .chip.wrong { background: #e6e6e6; }
+.st-app .hook-slot { background: transparent; border: 2px dashed #b9ab86; border-radius: 3px; color: #b9ab86; }
+.st-app .hook-side { border-radius: 0; border-width: 1px; border-color: transparent; background: transparent; }
+.st-app .hook-side.active { border-color: var(--bar); background: #fff; }
+.st-app .hook-label { font-family: var(--serif); color: var(--heading); font-size: 15px; }
+.st-app .letter { border-radius: 0; font-family: var(--serif); border-color: var(--line); }
+.st-app .letter[aria-pressed="true"] { background: var(--bar); border-color: var(--bar); }
+.st-app .streak { color: var(--link); font-style: italic; font-weight: 400; }
 .st-app .verdict { border-radius: 0; background: #fff; border: 0; border-left: 4px solid var(--line); }
 .st-app .verdict.good { background: #fff; border: 0; border-left: 4px solid var(--good); }
 .st-app .verdict.bad { background: #fff; border: 0; border-left: 4px solid var(--bad); }
@@ -316,6 +351,8 @@
 .st-app .weakrow .alpha { font-family: var(--serif); }
 .st-app .spinner { border-color: var(--line); border-top-color: var(--ink); }
 @media (max-width: 620px) {
+.st-app .hook-word, .st-app .hook-word .word { flex-wrap: nowrap; gap: 5px; }
+.st-app .rack.big.hook-word .tile { width: 40px; height: 40px; font-size: 1.3rem; }
 .st-app .toolbar { gap: 8px 10px; }
 .st-app .toolbar label { flex: 1 1 40%; min-width: 0; }
 .st-app .toolbar select { width: 100%; }

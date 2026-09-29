@@ -260,7 +260,7 @@ function freshStats() {
   return {
     anagram: { racks: 0, found: 0, missed: 0, perAlpha: {} },
     miniord: { right: 0, wrong: 0 },
-    kroge: { rounds: 0, hits: 0, misses: 0 },
+    kroge: { rounds: 0, hits: 0, misses: 0, wrong: 0, points: 0, bestStreak: 0, review: {} }, // Hooks
     turnering: { runs: [], best: {} },
   };
 }
@@ -276,7 +276,7 @@ function saveStats() {
 }
 
 /* ---------- navigation (faner med piletaster) ---------- */
-const views = ["anagram", "turnering", "miniord", "kroge", "dommer", "stats"];
+const views = ["anagram", "turnering", "miniord", "hooks", "dommer", "stats"];
 const tabs = [...document.querySelectorAll("#st-nav [role=tab]")];
 for (const btn of tabs) btn.addEventListener("click", () => showView(btn.dataset.view));
 $("st-nav").addEventListener("keydown", (e) => {
@@ -302,8 +302,8 @@ function showView(name, focusInput = true) {
   if (name === "stats") renderStats();
   if (name === "turnering" && !tu.running) tuShowBest();
   if (name === "miniord" && !moWord) moNext();
-  if (name === "kroge" && !krWord) krNext();
-  if (["miniord", "dommer", "anagram", "turnering"].includes(name)) loadInfo();
+  if (name === "hooks" && !hkCur) hkNext();
+  if (["miniord", "dommer", "anagram", "turnering", "hooks"].includes(name)) loadInfo();
   const input = { anagram: "an-input", dommer: "do-input", turnering: tu.running ? "tu-input" : null }[name];
   if (input && focusInput) focusQuiet($(input));
 }
@@ -816,55 +816,255 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ============================================================
-   KROGE
+   HOOKS — bogstaver der kan sættes foran/bagpå et ord
+   Point pr. rigtigt hook = brikkens værdi + op til 5 for hvor sjældent hooket er.
+   Forkert bogstav −3. Perfekt runde +5, og en stime af perfekte runder giver op til +10 ekstra.
    ============================================================ */
-let krWord = null;
+const hk = stats.kroge; // gemt under det gamle navn, så eksisterende statistik bevares
+Object.assign(hk, { points: 0, wrong: 0, bestStreak: 0, review: {}, ...hk });
+const HK_WRONG = -3, HK_PERFECT = 5, HK_REVIEW_GAP = 5;
+const hookCache = new Map(); // len -> { entries, freq, max, weights }
+let hkCur = null, hkChecked = false, hkSide = "front", hkStreak = 0;
+const hkSel = { front: new Set(), back: new Set() };
+const hkRecent = [];
 
-function krNext() {
-  const len = +$("kr-len").value;
-  const pool = dict.byLen.get(len);
-  // vælg helst ord som faktisk har kroge (80 % af trækkene)
-  for (let tries = 0; ; tries++) {
-    krWord = pool[Math.floor(Math.random() * pool.length)];
-    const h = hooks(krWord);
-    if (h.front.length + h.back.length > 0 || tries > 30 || Math.random() < 0.2) break;
-  }
-  $("kr-word").innerHTML = wordTilesHTML(krWord, "");
-  $("kr-front").value = "";
-  $("kr-back").value = "";
-  $("kr-result").innerHTML = "";
-  focusQuiet($("kr-front"));
+function hookData(len) {
+  let d = hookCache.get(len);
+  if (d) return d;
+  const freq = { front: {}, back: {} };
+  const entries = (dict.byLen.get(len) || []).map((w) => {
+    const h = hooks(w);
+    for (const c of h.front) freq.front[c] = (freq.front[c] || 0) + 1;
+    for (const c of h.back) freq.back[c] = (freq.back[c] || 0) + 1;
+    return { w, front: h.front, back: h.back };
+  });
+  const max = {
+    front: Math.max(1, ...Object.values(freq.front)),
+    back: Math.max(1, ...Object.values(freq.back)),
+  };
+  d = { entries, freq, max, weights: {} };
+  hookCache.set(len, d);
+  return d;
+}
+// 0 = det mest almindelige hook for ordlængden (fx S bagpå), 1 = aldrig set før
+function surprise(len, side, c) {
+  const d = hookData(len);
+  return 1 - (d.freq[side][c] || 0) / d.max[side];
+}
+function hookValue(len, side, c) {
+  return points(c) + Math.round(5 * surprise(len, side, c));
+}
+function hookList(e) {
+  return [...e.front.map((c) => ["front", c]), ...e.back.map((c) => ["back", c])];
 }
 
-$("kr-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!krWord) return;
-  const h = hooks(krWord);
-  const guessF = new Set($("kr-front").value.toLowerCase().replace(/[^a-zæøå]/g, ""));
-  const guessB = new Set($("kr-back").value.toLowerCase().replace(/[^a-zæøå]/g, ""));
-  const render = (label, actual, guess, makeWord) => {
-    const chips = [];
-    for (const c of actual) {
-      const cls = guess.has(c) ? "hit" : "miss";
-      chips.push(`<span class="chip ${cls}" title="${makeWord(c)}">${makeWord(c)}</span>`);
-    }
-    for (const c of guess) if (!actual.includes(c))
-      chips.push(`<span class="chip wrong">${makeWord(c)}</span>`);
-    const hits = actual.filter((c) => guess.has(c)).length;
-    stats.kroge.hits += hits;
-    stats.kroge.misses += actual.length - hits;
-    return `<p><b>${label}</b> (${hits}/${actual.length} fundet): ${chips.join(" ") || "<i>ingen kroge</i>"}</p>`;
-  };
-  stats.kroge.rounds++;
-  const html =
-    render("Foran", h.front, guessF, (c) => c + krWord) +
-    render("Bagpå", h.back, guessB, (c) => krWord + c);
-  saveStats();
-  $("kr-result").innerHTML = `<div class="hookres">${html}</div>`;
-});
+// Vægtet udvælgelse: "overraskende" favoriserer sjældne hooks, "pointgivende" tunge hooks
+function weightedPick(len, mode) {
+  const d = hookData(len);
+  if (!d.weights[mode]) {
+    const L = len, withHooks = d.entries.filter((e) => e.front.length + e.back.length);
+    const w = withHooks.map((e) => {
+      const hs = hookList(e);
+      // ord med rigtig mange hooks bliver en ren remse, så de nedprioriteres
+      const manageable = hs.length <= 6 ? 1 : 6 / hs.length;
+      if (mode === "points") {
+        const top = hs.map(([side, c]) => hookValue(L, side, c)).sort((a, b) => b - a).slice(0, 4);
+        return Math.pow(top.reduce((a, b) => a + b, 0), 1.5) * manageable ** 2;
+      }
+      if (mode === "surprise") {
+        // mindst ét rigtig sjældent hook tæller mest
+        const best = Math.max(...hs.map(([side, c]) => surprise(L, side, c)));
+        return (Math.pow(best, 4) + 0.02) * manageable ** 2;
+      }
+      return 1;
+    });
+    let acc = 0;
+    d.weights[mode] = { list: withHooks, cum: w.map((x) => (acc += x)), total: acc };
+  }
+  const { list, cum, total } = d.weights[mode];
+  const r = Math.random() * total;
+  let lo = 0, hi = cum.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < r) lo = mid + 1; else hi = mid; }
+  return list[lo];
+}
 
-$("kr-next").addEventListener("click", krNext);
-$("kr-len").addEventListener("change", krNext);
+function hkPick() {
+  const sel = $("hk-len").value;
+  const lens = sel === "24" ? [2, 3, 4] : [+sel];
+  const fits = (w) => lens.includes(w.length);
+  // gentagelse af ord, hvor du missede eller gættede forkert
+  const due = Object.entries(hk.review).filter(([w, r]) => r <= hk.rounds && fits(w) && dict.words.has(w));
+  if (due.length && Math.random() < 0.4) {
+    const [w] = due[Math.floor(Math.random() * due.length)];
+    return { w, ...hooks(w), review: true };
+  }
+  for (let tries = 0; tries < 8; tries++) {
+    const len = lens[Math.floor(Math.random() * lens.length)];
+    let e;
+    if (Math.random() < 0.12) { // fælde: et ord helt uden hooks
+      const none = hookData(len).entries.filter((x) => !x.front.length && !x.back.length);
+      e = none[Math.floor(Math.random() * none.length)];
+    }
+    e ||= weightedPick(len, $("hk-mode").value);
+    if (e && !hkRecent.includes(e.w)) return { ...e };
+  }
+  return { ...weightedPick(lens[0], "random") };
+}
+
+function lettersHTML(side) {
+  return ALPHABET.map((c) =>
+    `<button type="button" class="letter" data-side="${side}" data-letter="${c}" aria-pressed="false">${c}</button>`).join("");
+}
+
+function hkSetSide(side) {
+  hkSide = side;
+  for (const el of document.querySelectorAll("#view-hooks .hook-side"))
+    el.classList.toggle("active", el.dataset.side === side);
+}
+
+function hkNext() {
+  hkCur = hkPick();
+  hkRecent.push(hkCur.w);
+  if (hkRecent.length > 12) hkRecent.shift();
+  hkChecked = false;
+  hkSel.front.clear();
+  hkSel.back.clear();
+  $("hk-word").innerHTML = `<span class="tile hook-slot" aria-hidden="true">?</span>${wordTilesHTML(hkCur.w, "")}<span class="tile hook-slot" aria-hidden="true">?</span>`;
+  $("hk-front").innerHTML = lettersHTML("front");
+  $("hk-back").innerHTML = lettersHTML("back");
+  $("hk-count-front").textContent = "";
+  $("hk-count-back").textContent = "";
+  $("hk-info").innerHTML = hkCur.review ? `<span class="tag">gentagelse — du missede noget her sidst</span>` : "&nbsp;";
+  $("hk-feedback").textContent = " ";
+  $("hk-feedback").className = "feedback";
+  $("hk-result").innerHTML = "";
+  $("hk-check").hidden = false;
+  hkSetSide("front");
+  hkUpdateMeta();
+}
+
+function hkUpdateMeta() {
+  $("hk-score").textContent = `${hk.points} p`;
+  $("hk-streak").textContent = hkStreak >= 2 ? `stime ${hkStreak}` : "";
+}
+
+function hkToggle(side, c) {
+  if (hkChecked || !hkCur) return;
+  const set = hkSel[side];
+  set.has(c) ? set.delete(c) : set.add(c);
+  const b = document.querySelector(`#hk-${side} [data-letter="${c}"]`);
+  b?.setAttribute("aria-pressed", set.has(c));
+  hkSetSide(side);
+}
+
+// ord med ét bogstav på hver side, fx S·ÅL·E — vises som en ekstra overraskelse
+function doubleHooks(w) {
+  if (w.length > 4) return [];
+  const out = [];
+  for (const a of ALPHABET) for (const b of ALPHABET)
+    if (dict.words.has(a + w + b)) out.push(a + w + b);
+  return out;
+}
+
+function hkCheck() {
+  if (!hkCur || hkChecked) return;
+  hkChecked = true;
+  const e = hkCur, L = e.w.length;
+  let pts = 0, hits = 0, misses = 0, wrong = 0;
+  const rows = [], wrongWords = [];
+  for (const side of ["front", "back"]) {
+    const actual = e[side], guess = hkSel[side];
+    for (const c of actual) {
+      const word = side === "front" ? c + e.w : e.w + c;
+      const v = hookValue(L, side, c);
+      const hit = guess.has(c);
+      if (hit) { hits++; pts += v; } else misses++;
+      rows.push({ word, v, hit, rare: surprise(L, side, c) >= 0.75 });
+    }
+    for (const c of guess) if (!actual.includes(c)) {
+      wrong++;
+      pts += HK_WRONG;
+      wrongWords.push(side === "front" ? c + e.w : e.w + c);
+    }
+    for (const b of document.querySelectorAll(`#hk-${side} .letter`)) {
+      const c = b.dataset.letter, ok = actual.includes(c), picked = guess.has(c);
+      b.classList.toggle("hit", ok && picked);
+      b.classList.toggle("miss", ok && !picked);
+      b.classList.toggle("wrong", !ok && picked);
+      b.disabled = true;
+    }
+    $(`hk-count-${side}`).textContent = `· ${actual.length} ${actual.length === 1 ? "hook" : "hooks"}`;
+  }
+  const total = e.front.length + e.back.length;
+  const perfect = !misses && !wrong;
+  let bonus = 0;
+  if (perfect) {
+    hkStreak++;
+    bonus = HK_PERFECT + Math.min(10, 2 * (hkStreak - 1));
+    pts += bonus;
+  } else {
+    hkStreak = 0;
+  }
+  Object.assign(hk, {
+    rounds: hk.rounds + 1, hits: hk.hits + hits, misses: hk.misses + misses,
+    wrong: hk.wrong + wrong, points: hk.points + pts, bestStreak: Math.max(hk.bestStreak, hkStreak),
+  });
+  if (perfect) delete hk.review[e.w]; else hk.review[e.w] = hk.rounds + HK_REVIEW_GAP;
+  saveStats();
+
+  const fb = $("hk-feedback");
+  const sign = pts >= 0 ? "+" : "−";
+  if (!total && perfect) fb.textContent = `Rigtigt — “${e.w.toUpperCase()}” har ingen hooks! ${sign}${Math.abs(pts)} point`;
+  else if (perfect) fb.textContent = `Perfekt! Alle ${total} hooks · ${sign}${Math.abs(pts)} point (heraf ${bonus} i bonus)`;
+  else fb.textContent = `${hits} af ${total} hooks${wrong ? ` · ${wrong} forkert${wrong === 1 ? "" : "e"} (${wrong * HK_WRONG})` : ""} · ${sign}${Math.abs(pts)} point`;
+  fb.className = "feedback " + (perfect ? "good" : pts > 0 ? "" : "bad");
+
+  const render = () => {
+    const sorted = rows.sort((x, y) => y.v - x.v);
+    const rest = sorted.slice(10);
+    const list = sorted.slice(0, 10).map((r) =>
+      `<div class="found-word${r.hit ? "" : " missed"}">${wordTilesHTML(r.word)}<span class="pts">${r.hit ? "+" : ""}${r.v} p</span>` +
+      `${r.rare ? '<span class="tag">sjældent</span>' : ""}${lemmaNote(r.word)}</div>`).join("");
+    const dbl = doubleHooks(e.w);
+    $("hk-result").innerHTML =
+      (list ? `<div class="found">${list}</div>` : "") +
+      (rest.length ? `<p class="hint">Og ${rest.length} mere: ${rest.map((r) => `<span class="${r.hit ? "" : "missed-text"}">${r.word.toUpperCase()}</span>`).join(", ")}</p>` : "") +
+      (wrongWords.length ? `<p class="hint">Ikke gyldige: ${wrongWords.map((w) => w.toUpperCase()).join(", ")}</p>` : "") +
+      (dbl.length ? `<p class="hint"><b>Overraskelse — begge sider:</b> ${dbl.slice(0, 8).map((w) => w.toUpperCase()).join(", ")}${dbl.length > 8 ? " …" : ""}</p>` : "");
+  };
+  render();
+  loadInfo().then(render, () => {});
+  $("hk-check").hidden = true;
+  hkUpdateMeta();
+  focusQuiet($("hk-next"));
+}
+
+$("view-hooks").addEventListener("click", (ev) => {
+  const letter = ev.target.closest(".letter");
+  if (letter) return hkToggle(letter.dataset.side, letter.dataset.letter);
+  const label = ev.target.closest(".hook-label");
+  if (label) hkSetSide(label.dataset.side);
+});
+document.addEventListener("keydown", (e) => {
+  if ($("view-hooks").hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  const k = e.key.toLowerCase();
+  if (k === "arrowleft" || k === "arrowright") {
+    if (e.target.closest?.("[role=tablist]")) return; // piletaster i fanebjælken skifter fane
+    e.preventDefault();
+    hkSetSide(k === "arrowleft" ? "front" : "back");
+  } else if (k === "enter") {
+    if (e.target.tagName === "BUTTON") return; // knappen håndterer selv Enter
+    e.preventDefault();
+    hkChecked ? hkNext() : hkCheck();
+  } else if (k.length === 1 && ALPHABET.includes(k)) {
+    e.preventDefault();
+    hkToggle(hkSide, k);
+  }
+});
+$("hk-check").addEventListener("click", hkCheck);
+$("hk-next").addEventListener("click", hkNext);
+for (const id of ["hk-len", "hk-mode"]) $(id).addEventListener("change", hkNext);
 
 /* ============================================================
    ORDDOMMER
@@ -891,7 +1091,7 @@ $("do-form").addEventListener("submit", async (e) => {
     .map(([l, p]) => `<li><b>${l}</b> <span class="pos">— ${POS_LABELS[p] || p}</span></li>`).join("");
   const h = hooks(w);
   const hookLine = (w.length < 15)
-    ? `<p class="pos">Kroge — foran: ${h.front.length ? h.front.join(" ").toUpperCase() : "ingen"} ·
+    ? `<p class="pos">Hooks — foran: ${h.front.length ? h.front.join(" ").toUpperCase() : "ingen"} ·
        bagpå: ${h.back.length ? h.back.join(" ").toUpperCase() : "ingen"}</p>` : "";
   out.innerHTML = `<div class="verdict good"><h3>${wordTilesHTML(w)}</h3>
     <p><b>Gyldigt</b> · ${wordPoints(w)} point (uden felter)</p>
@@ -911,8 +1111,10 @@ function renderStats() {
     ["Anagram-træfsikkerhed", pct(a.found, a.found + a.missed)],
     ["Miniord rigtige", `${m.right} / ${m.right + m.wrong}`],
     ["Miniord-træfsikkerhed", pct(m.right, m.right + m.wrong)],
-    ["Kroge-runder", k.rounds],
-    ["Kroge-træfsikkerhed", pct(k.hits, k.hits + k.misses)],
+    ["Hooks-runder", k.rounds],
+    ["Hooks-træfsikkerhed", pct(k.hits, k.hits + k.misses + (k.wrong || 0))],
+    ["Hooks-point", k.points || 0],
+    ["Bedste hooks-stime", k.bestStreak || 0],
   ].map(([lbl, num]) => `<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
 
   const entries = Object.entries(a.perAlpha);
@@ -941,8 +1143,13 @@ function renderStats() {
 }
 $("st-reset").addEventListener("click", () => {
   if (!confirm("Nulstil al statistik, gentagelser og turneringsrekorder?")) return;
-  Object.assign(stats, freshStats());
+  const fresh = freshStats();
+  Object.assign(hk, fresh.kroge); // hk peger på stats.kroge — behold samme objekt
+  fresh.kroge = hk;
+  hkStreak = 0;
+  Object.assign(stats, fresh);
   saveStats();
+  hkUpdateMeta();
   renderStats();
 });
 
