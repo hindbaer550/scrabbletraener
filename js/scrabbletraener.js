@@ -80,7 +80,7 @@ function tileHTML(letter, size = "") {
 
 // Et ord som brikker; skærmlæsere får hele ordet i stedet for bogstav for bogstav
 function wordTilesHTML(word, size = "small") {
-  return `<span class="word" role="img" aria-label="${word.toUpperCase()}">` +
+  return `<span class="word" role="img" aria-label="${word.toUpperCase()}" style="--n:${[...word].length}">` +
     [...word].map((c) => tileHTML(c, size)).join("") + "</span>";
 }
 
@@ -364,7 +364,11 @@ function setupRack(rackEl, formEl, inputEl) {
     rackEl.append(...btns);
   });
   return {
-    set(letters) { rackEl.innerHTML = rackButtonsHTML(letters); sync(); },
+    set(letters) {
+      rackEl.innerHTML = rackButtonsHTML(letters);
+      rackEl.style.setProperty("--n", [...letters].length); // én række — brikkerne skaleres
+      sync();
+    },
     clear() { inputEl.value = ""; sync(); },
   };
 }
@@ -966,7 +970,6 @@ function olNext() {
   olCur = { list, word, onList };
   olShowName(list);
   $("ol-word").innerHTML = wordTilesHTML(word, word.length > 8 ? "small" : "");
-  $("ol-word").style.setProperty("--n", word.length); // mobil: brikkerne skaleres, så ordet står på én linje
   $("ol-feedback").textContent = " ";
   $("ol-feedback").className = "feedback";
   olUpdateMeta();
@@ -1207,6 +1210,7 @@ function hkNext() {
   hkSel.front.clear();
   hkSel.back.clear();
   $("hk-word").innerHTML = `<span class="tile hook-slot" aria-hidden="true">?</span>${wordTilesHTML(hkCur.w, "")}<span class="tile hook-slot" aria-hidden="true">?</span>`;
+  $("hk-word").style.setProperty("--n", hkCur.w.length + 2); // ordet + de to "?"-felter
   $("hk-front").innerHTML = lettersHTML("front");
   $("hk-back").innerHTML = lettersHTML("back");
   $("hk-count-front").textContent = "";
