@@ -175,6 +175,8 @@
 .st-app .streak { color: var(--gold); font-weight: 700; }
 .st-app .found-word .tag { margin-left: 8px; font-size: .8rem; }
 .st-app .missed-text { color: var(--bad); }
+.st-app .list-name { text-align: center; margin: 18px 0 0; color: var(--muted); }
+.st-app .list-name a { font-weight: 700; }
 .st-app .verdict { margin-top: 18px; padding: 16px 20px; border-radius: 12px; font-size: 1.05rem; }
 .st-app .verdict.good { background: #e2f2e6; border: 1px solid #bfe2c8; }
 .st-app .verdict.bad { background: #fbeae9; border: 1px solid #eec4c0; }
@@ -201,6 +203,12 @@
   border-radius: 5px; padding: 1px 6px; font-size: .85em;
 }
 @media (max-width: 620px) {
+.st-app #ol-word .word { flex-wrap: nowrap; gap: 3px; }
+.st-app #ol-word .tile {
+    width: min(46px, calc((100vw - 96px) / var(--n, 7))); height: auto; aspect-ratio: 1;
+    font-size: min(1.4rem, calc((100vw - 96px) / var(--n, 7) * .55));
+  }
+.st-app #ol-word .tile sub { font-size: .5em; right: 2px; bottom: 1px; }
 .st-app .hook-word, .st-app .hook-word .word { flex-wrap: nowrap; gap: 5px; }
 .st-app .rack.big.hook-word .tile { width: 40px; height: 40px; font-size: 1.3rem; }
 .st-app .hook-sides { grid-template-columns: 1fr; }
@@ -262,7 +270,7 @@
   color: #fff;
   font-family: var(--serif);
   font-size: 15px;
-  padding: 11px 14px;
+  padding: 11px 11px;
 }
 .st-app nav button:hover { background: rgba(255,255,255,.1); color: #fff; }
 .st-app nav button.active { background: var(--stripe); color: var(--ink); font-weight: 400; }
@@ -341,6 +349,8 @@
 .st-app .letter { border-radius: 0; font-family: var(--serif); border-color: var(--line); }
 .st-app .letter[aria-pressed="true"] { background: var(--bar); border-color: var(--bar); }
 .st-app .streak { color: var(--link); font-style: italic; font-weight: 400; }
+.st-app .list-name { font-size: 15px; }
+.st-app .list-name a { color: var(--link); font-weight: 700; }
 .st-app .verdict { border-radius: 0; background: #fff; border: 0; border-left: 4px solid var(--line); }
 .st-app .verdict.good { background: #fff; border: 0; border-left: 4px solid var(--good); }
 .st-app .verdict.bad { background: #fff; border: 0; border-left: 4px solid var(--bad); }

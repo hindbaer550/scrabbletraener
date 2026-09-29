@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scrabbletræneren</title>
-<meta name="description" content="Træning for danske scrabblespillere: anagrammer, turneringstræning, miniord, kroge og orddommer.">
+<meta name="description" content="Træning for danske scrabblespillere: anagrammer, dyst mod dig selv, foreningens ordlister, hooks og orddommer.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Roboto+Slab:wght@300&display=swap">
@@ -21,7 +21,7 @@
   <article class="hentry">
     <h1 class="entry-title">Træning</h1>
     <div class="entry-content">
-      <p>Anagrammer, turneringstræning, miniord og kroge — med ordlisten fra Retskrivningsordbogen (COR 1.5). Din statistik gemmes kun i din egen browser.</p>
+      <p>Anagrammer, dyst mod dig selv, foreningens ordlister og hooks — med ordlisten fra Retskrivningsordbogen (COR 1.5). Din statistik gemmes kun i din egen browser.</p>
 <div class="st-app">
 <header>
   <div class="brand">
@@ -35,8 +35,8 @@
   </div>
   <nav id="st-nav" role="tablist" aria-label="Træningsformer">
     <button role="tab" id="tab-anagram" data-view="anagram" aria-controls="view-anagram" aria-selected="true" class="active">Anagramjagt</button>
-    <button role="tab" id="tab-turnering" data-view="turnering" aria-controls="view-turnering" aria-selected="false" tabindex="-1">Turnering</button>
-    <button role="tab" id="tab-miniord" data-view="miniord" aria-controls="view-miniord" aria-selected="false" tabindex="-1">Miniord</button>
+    <button role="tab" id="tab-turnering" data-view="turnering" aria-controls="view-turnering" aria-selected="false" tabindex="-1">Dyst mod dig selv</button>
+    <button role="tab" id="tab-lister" data-view="lister" aria-controls="view-lister" aria-selected="false" tabindex="-1">Ordlister</button>
     <button role="tab" id="tab-hooks" data-view="hooks" aria-controls="view-hooks" aria-selected="false" tabindex="-1">Hooks</button>
     <button role="tab" id="tab-dommer" data-view="dommer" aria-controls="view-dommer" aria-selected="false" tabindex="-1">Orddommer</button>
     <button role="tab" id="tab-stats" data-view="stats" aria-controls="view-stats" aria-selected="false" tabindex="-1">Statistik</button>
@@ -74,13 +74,11 @@
       </label>
       <label>Racks
         <select id="an-mode">
-          <option value="mix" selected>Nye + gentagelser</option>
+          <option value="new" selected>Kun nye</option>
+          <option value="mix">Nye + gentagelser</option>
           <option value="review">Kun gentagelser</option>
-          <option value="new">Kun nye</option>
         </select>
       </label>
-      <span class="spacer"></span>
-      <span id="an-timer" class="timer" aria-label="Tid brugt">0:00</span>
     </div>
 
     <div class="rack" id="an-rack" role="group" aria-label="Dine brikker — tryk for at lægge dem"></div>
@@ -104,8 +102,8 @@
   <!-- TURNERING -->
   <section id="view-turnering" class="view panel" role="tabpanel" aria-labelledby="tab-turnering" hidden>
     <div id="tu-setup">
-      <h2>Turneringstræning</h2>
-      <p class="hint">Et antal racks på tid, ligesom ved brættet. Du får 10 point pr. fundet ord og bonus for de sekunder, der er tilbage, når du finder alle ord i et rack. Missede racks kommer automatisk med i dine gentagelser.</p>
+      <h2>Dyst mod dig selv</h2>
+      <p class="hint">Slå din egen rekord: et antal racks, hvor uret tæller ned — ligesom ved brættet. Du får 10 point pr. fundet ord og bonus for de sekunder, der er tilbage, når du finder alle ord i et rack. Missede racks kommer automatisk med i dine gentagelser.</p>
       <div class="toolbar">
         <label>Racks
           <select id="tu-rounds">
@@ -142,7 +140,7 @@
       </div>
       <p class="hint" id="tu-best" aria-live="polite"></p>
       <div class="actions">
-        <button id="tu-start" class="primary">Start turnering</button>
+        <button id="tu-start" class="primary">Start dysten</button>
       </div>
     </div>
 
@@ -183,25 +181,25 @@
     </div>
   </section>
 
-  <!-- MINIORD -->
-  <section id="view-miniord" class="view panel" role="tabpanel" aria-labelledby="tab-miniord" hidden>
+  <!-- ORDLISTER — quiz i foreningens ordlister -->
+  <section id="view-lister" class="view panel" role="tabpanel" aria-labelledby="tab-lister" hidden>
     <div class="toolbar">
-      <label>Længde
-        <select id="mo-len">
-          <option value="2">2 bogstaver</option>
-          <option value="3" selected>3 bogstaver</option>
-          <option value="23">2–3 blandet</option>
+      <label>Ordliste
+        <select id="ol-list">
+          <option value="" selected>Tilfældig liste</option>
         </select>
       </label>
       <span class="spacer"></span>
-      <span id="mo-score" class="score" aria-label="Rigtige svar">0 / 0</span>
+      <span class="hk-meta"><span id="ol-streak" class="streak" aria-label="Rigtige i træk"></span>
+      <span id="ol-score" class="score" aria-label="Rigtige svar">0 / 0</span></span>
     </div>
-    <p class="hint">Er det et gyldigt scrabbleord? Svar med knapperne eller tasterne <kbd>J</kbd> (gyldigt) og <kbd>N</kbd> (ugyldigt).</p>
-    <div class="rack big" id="mo-word"></div>
-    <p class="feedback" id="mo-feedback" aria-live="polite">&nbsp;</p>
+    <p class="hint">Står ordet på listen? Listerne er dem fra <a href="https://scrabbleforening.wordpress.com/ordlister/" target="_blank" rel="noopener">foreningens side med ordlister</a>. Svar med knapperne eller tasterne <kbd>J</kbd> (ja) og <kbd>N</kbd> (nej).</p>
+    <p class="list-name" id="ol-name" aria-live="polite"></p>
+    <div class="rack big" id="ol-word"></div>
+    <p class="feedback" id="ol-feedback" aria-live="polite">&nbsp;</p>
     <div class="actions">
-      <button id="mo-yes" class="primary">✓ Gyldigt (J)</button>
-      <button id="mo-no" class="danger">✗ Ugyldigt (N)</button>
+      <button id="ol-yes" class="primary">✓ På listen (J)</button>
+      <button id="ol-no" class="danger">✗ Ikke på listen (N)</button>
     </div>
   </section>
 
@@ -270,7 +268,7 @@
     <h3>Gentagelser</h3>
     <p class="hint" id="st-review"></p>
     <div id="st-weak"></div>
-    <h3>Turneringer</h3>
+    <h3>Dyst mod dig selv</h3>
     <div id="st-tour"></div>
     <div class="actions">
       <button id="st-reset" class="danger">Nulstil statistik</button>

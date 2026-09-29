@@ -96,7 +96,7 @@ function rackButtonsHTML(letters) {
 
 // ---- datafiles.js ----
 // Genereret af tools/pack_data.py — ret ikke i hånden
-const DATA_FILES = { words: "words-140df973d4.bin", info: "info-8d82ab7a54.bin" };
+const DATA_FILES = { words: "words-140df973d4.bin", info: "info-8d82ab7a54.bin", lister: "lister-2e50292f01.bin" };
 
 // ---- dict.js ----
 
@@ -239,6 +239,16 @@ function loadInfo() {
   return infoPromise;
 }
 
+// Foreningens ordlister (navn, url, ord) — hentes først når quizzen åbnes
+let listsPromise = null;
+function loadLists() {
+  if (!listsPromise) {
+    listsPromise = loadText(DATA_FILES.lister, window.EMBEDDED_LISTER_B64).then((t) => JSON.parse(t));
+    listsPromise.catch(() => { listsPromise = null; });
+  }
+  return listsPromise;
+}
+
 const POS_LABELS = {
   sb: "substantiv", vb: "verbum", adj: "adjektiv", adv: "adverbium",
   "præp": "præposition", konj: "konjunktion", pron: "pronomen",
@@ -259,7 +269,8 @@ const STATS_KEY = "dsf-traener-stats";
 function freshStats() {
   return {
     anagram: { racks: 0, found: 0, missed: 0, perAlpha: {} },
-    miniord: { right: 0, wrong: 0 },
+    miniord: { right: 0, wrong: 0 }, // ældre fane, beholdes for gammel statistik
+    lister: { right: 0, wrong: 0, bestStreak: 0, perList: {} },
     kroge: { rounds: 0, hits: 0, misses: 0, wrong: 0, points: 0, bestStreak: 0, review: {} }, // Hooks
     turnering: { runs: [], best: {} },
   };
@@ -276,7 +287,7 @@ function saveStats() {
 }
 
 /* ---------- navigation (faner med piletaster) ---------- */
-const views = ["anagram", "turnering", "miniord", "hooks", "dommer", "stats"];
+const views = ["anagram", "turnering", "lister", "hooks", "dommer", "stats"];
 const tabs = [...document.querySelectorAll("#st-nav [role=tab]")];
 for (const btn of tabs) btn.addEventListener("click", () => showView(btn.dataset.view));
 $("st-nav").addEventListener("keydown", (e) => {
@@ -301,9 +312,9 @@ function showView(name, focusInput = true) {
   if (name === "turnering") tuResume(); else tuPause();
   if (name === "stats") renderStats();
   if (name === "turnering" && !tu.running) tuShowBest();
-  if (name === "miniord" && !moWord) moNext();
+  if (name === "lister" && !olCur) olStart();
   if (name === "hooks" && !hkCur) hkNext();
-  if (["miniord", "dommer", "anagram", "turnering", "hooks"].includes(name)) loadInfo();
+  if (["lister", "dommer", "anagram", "turnering", "hooks"].includes(name)) loadInfo();
   const input = { anagram: "an-input", dommer: "do-input", turnering: tu.running ? "tu-input" : null }[name];
   if (input && focusInput) focusQuiet($(input));
 }
@@ -450,15 +461,8 @@ function fmtTime(s) {
 /* ============================================================
    ANAGRAMJAGT
    ============================================================ */
-let anGroup = null, anFound = new Set(), anTimer = null, anSeconds = 0, anRevealed = false;
+let anGroup = null, anFound = new Set(), anRevealed = false;
 const anRack = setupRack($("an-rack"), $("an-form"), $("an-input"));
-
-function anStartTimer() {
-  clearInterval(anTimer);
-  anSeconds = 0;
-  $("an-timer").textContent = "0:00";
-  anTimer = setInterval(() => { $("an-timer").textContent = fmtTime(++anSeconds); }, 1000);
-}
 
 function anPickGroup() {
   const len = +$("an-len").value;
@@ -486,7 +490,6 @@ function anNext(focus = true) {
   $("an-feedback").className = "feedback";
   anUpdateInfo();
   if (focus) focusQuiet($("an-input"));
-  anStartTimer();
 }
 
 function anUpdateInfo() {
@@ -525,7 +528,6 @@ $("an-form").addEventListener("submit", (e) => {
 });
 
 function anFinish(solvedAll) {
-  clearInterval(anTimer);
   anRevealed = true;
   $("an-input").readOnly = true;
   const missing = anGroup.words.filter((w) => !anFound.has(w));
@@ -537,7 +539,7 @@ function anFinish(solvedAll) {
   else if (wasBox) review = ` Rykket op til niveau ${e.box}/5 — næste gang ${describeDue(e)}.`;
   const fb = $("an-feedback");
   if (solvedAll) {
-    fb.textContent = `Alle ${anGroup.words.length} ord fundet på ${fmtTime(anSeconds)}!${review}`;
+    fb.textContent = `Alle ${anGroup.words.length} ord fundet!${review}`;
     fb.className = "feedback good";
   } else {
     fb.textContent = (missing.length ? `Du manglede ${missing.length} ord (vist med rødt).` : "Alle ord fundet!") + review;
@@ -753,66 +755,104 @@ $("tu-again").addEventListener("click", tuStart);
 $("tu-setup-btn").addEventListener("click", tuStop);
 $("tu-skip").addEventListener("click", () => tuEndRack(false, "Rack opgivet."));
 $("tu-next").addEventListener("click", tuAdvance);
-$("tu-quit").addEventListener("click", () => { if (confirm("Afbryd turneringen? Resultatet gemmes ikke.")) tuStop(); });
+$("tu-quit").addEventListener("click", () => { if (confirm("Afbryd dysten? Resultatet gemmes ikke.")) tuStop(); });
 
 /* ============================================================
-   MINIORD — gyldigt/ugyldigt-quiz for 2-3-bogstavsord
+   ORDLISTER — står ordet på listen? Quiz i foreningens egne ordlister
+   (scrabbleforening.wordpress.com/ordlister, hentet med tools/fetch_dsf_lists.py)
    ============================================================ */
-let moWord = null, moIsReal = false, moLocked = false;
+const ol = stats.lister;
+Object.assign(ol, { right: 0, wrong: 0, bestStreak: 0, perList: {}, ...ol });
+const VOWELS = "aeiouyæøå", CONSONANTS = "bdfghjklmnprstv";
+let olLists = null, olCur = null, olLocked = false, olStreak = 0;
 
-function randomFake(len) {
-  const letters = "abcdefghijklmnopqrstuvxyzæøå";
-  const pool = dict.byLen.get(len);
-  for (let tries = 0; tries < 100; tries++) {
-    const base = pool[Math.floor(Math.random() * pool.length)];
-    const i = Math.floor(Math.random() * len);
-    const c = letters[Math.floor(Math.random() * letters.length)];
+async function olStart() {
+  if (!olLists) {
+    $("ol-name").textContent = "Henter ordlisterne …";
+    try {
+      olLists = (await loadLists()).map((l) => ({ ...l, set: new Set(l.words) }));
+    } catch (err) {
+      $("ol-name").textContent = `Ordlisterne kunne ikke hentes: ${err.message}`;
+      return;
+    }
+    $("ol-list").insertAdjacentHTML("beforeend",
+      olLists.map((l, i) => `<option value="${i}">${l.name}</option>`).join(""));
+  }
+  olNext();
+}
+
+// Et falsk ord, der ligner ordene på listen: ét bogstav skiftes til et af samme slags
+// (vokal/konsonant). Præfiks, C/X/Z og A'erne i "Ord med 2 A'er" røres ikke, så
+// ordet stadig "passer" til listen. Det må hverken stå på listen eller være et gyldigt ord.
+function olFake(list) {
+  const prefix = (list.name.match(/begynder med ([A-ZÆØÅ]+)-/) || [])[1]?.toLowerCase() || "";
+  const keepA = /2 A/.test(list.name);
+  for (let tries = 0; tries < 200; tries++) {
+    const base = list.words[Math.floor(Math.random() * list.words.length)];
+    const pos = [...base].map((_, i) => i).filter((i) =>
+      i >= prefix.length && !"cxz".includes(base[i]) && !(keepA && base[i] === "a"));
+    if (!pos.length) continue;
+    const i = pos[Math.floor(Math.random() * pos.length)];
+    let pool = VOWELS.includes(base[i]) ? VOWELS : CONSONANTS;
+    if (keepA) pool = pool.replace("a", "");
+    const c = pool[Math.floor(Math.random() * pool.length)];
     const fake = base.slice(0, i) + c + base.slice(i + 1);
-    if (!dict.words.has(fake)) return fake;
+    if (fake !== base && !list.set.has(fake) && !dict.words.has(fake)) return fake;
   }
   return null;
 }
 
-function moNext() {
-  moLocked = false;
-  const sel = $("mo-len").value;
-  const len = sel === "23" ? (Math.random() < 0.4 ? 2 : 3) : +sel;
-  moIsReal = Math.random() < 0.5;
-  if (moIsReal) {
-    const pool = dict.byLen.get(len);
-    moWord = pool[Math.floor(Math.random() * pool.length)];
-  } else {
-    moWord = randomFake(len) || dict.byLen.get(len)[0];
-    moIsReal = dict.words.has(moWord);
-  }
-  $("mo-word").innerHTML = wordTilesHTML(moWord, "");
-  $("mo-feedback").textContent = " ";
-  $("mo-feedback").className = "feedback";
+function olNext() {
+  if (!olLists) return;
+  olLocked = false;
+  const sel = $("ol-list").value;
+  const list = olLists[sel === "" ? Math.floor(Math.random() * olLists.length) : +sel];
+  let word = null, onList = Math.random() < 0.5;
+  if (!onList) word = olFake(list);
+  if (!word) { onList = true; word = list.words[Math.floor(Math.random() * list.words.length)]; }
+  olCur = { list, word, onList };
+  $("ol-name").innerHTML = `Liste: <a href="${list.url}" target="_blank" rel="noopener">${list.name}</a>`;
+  $("ol-word").innerHTML = wordTilesHTML(word, word.length > 8 ? "small" : "");
+  $("ol-word").style.setProperty("--n", word.length); // mobil: brikkerne skaleres, så ordet står på én linje
+  $("ol-feedback").textContent = " ";
+  $("ol-feedback").className = "feedback";
+  olUpdateMeta();
 }
 
-function moAnswer(saidReal) {
-  if (moLocked || !moWord) return;
-  moLocked = true;
-  const right = saidReal === moIsReal;
-  stats.miniord[right ? "right" : "wrong"]++;
+function olUpdateMeta() {
+  $("ol-score").textContent = `${ol.right} / ${ol.right + ol.wrong}`;
+  $("ol-streak").textContent = olStreak >= 3 ? `${olStreak} i træk` : "";
+}
+
+function olAnswer(saidYes) {
+  if (olLocked || !olCur) return;
+  olLocked = true;
+  const { list, word, onList } = olCur;
+  const right = saidYes === onList;
+  const per = (ol.perList[list.name] ||= { right: 0, wrong: 0 });
+  per[right ? "right" : "wrong"]++;
+  ol[right ? "right" : "wrong"]++;
+  olStreak = right ? olStreak + 1 : 0;
+  ol.bestStreak = Math.max(ol.bestStreak, olStreak);
   saveStats();
-  const fb = $("mo-feedback");
-  const note = moIsReal ? lemmaNote(moWord) : "";
-  fb.innerHTML = right
-    ? `Rigtigt — “${moWord.toUpperCase()}” er ${moIsReal ? "gyldigt" : "ikke et ord"}. ${note}`
-    : `Forkert — “${moWord.toUpperCase()}” er ${moIsReal ? "faktisk gyldigt!" : "ikke et gyldigt ord."} ${note}`;
-  fb.className = "feedback " + (right ? "good" : "bad");
-  $("mo-score").textContent = `${stats.miniord.right} / ${stats.miniord.right + stats.miniord.wrong}`;
-  setTimeout(moNext, right ? 900 : 2100);
+  const W = `“${word.toUpperCase()}”`;
+  const fact = onList
+    ? `${W} står på listen. ${lemmaNote(word)}`
+    : `${W} står ikke på listen — og er ikke et gyldigt ord.`;
+  $("ol-feedback").innerHTML = (right ? "Rigtigt — " : "Forkert — ") + fact;
+  $("ol-feedback").className = "feedback " + (right ? "good" : "bad");
+  olUpdateMeta();
+  setTimeout(olNext, right ? 1000 : 2600);
 }
 
-$("mo-yes").addEventListener("click", () => moAnswer(true));
-$("mo-no").addEventListener("click", () => moAnswer(false));
-$("mo-len").addEventListener("change", moNext);
+$("ol-yes").addEventListener("click", () => olAnswer(true));
+$("ol-no").addEventListener("click", () => olAnswer(false));
+$("ol-list").addEventListener("change", olNext);
 document.addEventListener("keydown", (e) => {
-  if ($("view-miniord").hidden || ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
-  if (e.key === "j" || e.key === "J") moAnswer(true);
-  if (e.key === "n" || e.key === "N") moAnswer(false);
+  if ($("view-lister").hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "j" || e.key === "J") olAnswer(true);
+  if (e.key === "n" || e.key === "N") olAnswer(false);
 });
 
 /* ============================================================
@@ -1102,15 +1142,16 @@ $("do-form").addEventListener("submit", async (e) => {
    STATISTIK
    ============================================================ */
 function renderStats() {
-  const a = stats.anagram, m = stats.miniord, k = stats.kroge;
+  const a = stats.anagram, m = stats.lister, k = stats.kroge;
   const pct = (x, y) => (y ? Math.round((100 * x) / y) + " %" : "–");
   $("st-grid").innerHTML = [
     ["Racks spillet", a.racks],
     ["Ord fundet", a.found],
     ["Ord misset", a.missed],
     ["Anagram-træfsikkerhed", pct(a.found, a.found + a.missed)],
-    ["Miniord rigtige", `${m.right} / ${m.right + m.wrong}`],
-    ["Miniord-træfsikkerhed", pct(m.right, m.right + m.wrong)],
+    ["Ordlister rigtige", `${m.right} / ${m.right + m.wrong}`],
+    ["Ordlister-træfsikkerhed", pct(m.right, m.right + m.wrong)],
+    ["Bedste stime i Ordlister", m.bestStreak || 0],
     ["Hooks-runder", k.rounds],
     ["Hooks-træfsikkerhed", pct(k.hits, k.hits + k.misses + (k.wrong || 0))],
     ["Hooks-point", k.points || 0],
@@ -1139,17 +1180,21 @@ function renderStats() {
         `<div class="weakrow"><span class="alpha">${r.score} p</span>
          <span class="meta">${fmtDate(r.date)} · ${r.label} · ${r.found}/${r.total} ord · ${r.solved}/${r.racks} racks løst
          ${stats.turnering.best[r.key]?.date === r.date ? " · <b>rekord</b>" : ""}</span></div>`).join("")
-    : `<p class="hint">Ingen turneringer endnu — prøv fanen Turnering.</p>`;
+    : `<p class="hint">Ingen dyster endnu — prøv fanen “Dyst mod dig selv”.</p>`;
 }
 $("st-reset").addEventListener("click", () => {
-  if (!confirm("Nulstil al statistik, gentagelser og turneringsrekorder?")) return;
+  if (!confirm("Nulstil al statistik, gentagelser og rekorder?")) return;
   const fresh = freshStats();
-  Object.assign(hk, fresh.kroge); // hk peger på stats.kroge — behold samme objekt
+  Object.assign(hk, fresh.kroge); // hk og ol peger på de gemte objekter — behold dem
   fresh.kroge = hk;
+  Object.assign(ol, fresh.lister);
+  fresh.lister = ol;
   hkStreak = 0;
+  olStreak = 0;
   Object.assign(stats, fresh);
   saveStats();
   hkUpdateMeta();
+  if (olLists) olUpdateMeta();
   renderStats();
 });
 
@@ -1165,7 +1210,6 @@ $("st-reset").addEventListener("click", () => {
   }
   loading.hidden = true;
   $("view-anagram").hidden = false;
-  $("mo-score").textContent = `${stats.miniord.right} / ${stats.miniord.right + stats.miniord.wrong}`;
   anNext(false); // ingen autofokus ved sideindlæsning — siden må ikke rulle af sig selv
 })();
 
