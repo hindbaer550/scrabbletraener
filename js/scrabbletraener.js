@@ -571,7 +571,10 @@ function tuReadCfg() {
 const tuKey = (c) => `${c.rounds}-${c.time}-${c.len}-${c.band}`;
 function tuLabel(c) {
   const len = c.len === "78" ? "7+8" : c.len;
-  const band = { "0-200": "top 200", "200-1000": "201–1.000", "1000-3000": "1.001–3.000", all: "alle" }[c.band];
+  const band = {
+    "0-15": "top 15", "0-30": "top 30", "0-50": "top 50", "0-200": "top 200",
+    "200-1000": "201–1.000", "1000-3000": "1.001–3.000", all: "alle",
+  }[c.band];
   return `${c.rounds} racks · ${c.time} sek. · ${len} bogstaver · ${band}`;
 }
 function fmtDate(t) {
@@ -597,6 +600,11 @@ function tuStart() {
     const len = cfg.len === "78" ? (Math.random() < 0.5 ? 7 : 8) : +cfg.len;
     const g = pickFromBand(len, cfg.band);
     if (g && !seen.has(g.alpha)) { seen.add(g.alpha); groups.push(g); }
+  }
+  // fx 20 racks fra top 15: når alle forskellige er brugt, må racks gentages
+  while (groups.length < cfg.rounds) {
+    const len = cfg.len === "78" ? (Math.random() < 0.5 ? 7 : 8) : +cfg.len;
+    groups.push(pickFromBand(len, cfg.band));
   }
   Object.assign(tu, { running: true, cfg, groups, i: 0, score: 0, results: [], paused: false });
   tuShow("play");
