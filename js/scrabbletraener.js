@@ -540,7 +540,7 @@ function anFinish(solvedAll) {
   else if (wasBox) review = ` Rykket op til niveau ${e.box}/5 — næste gang ${describeDue(e)}.`;
   const fb = $("an-feedback");
   if (solvedAll) {
-    fb.textContent = `Alle ${anGroup.words.length} ord fundet!${review}`;
+    fb.textContent = (anGroup.words.length === 1 ? "Ordet er fundet!" : `Alle ${anGroup.words.length} ord fundet!`) + review;
     fb.className = "feedback good";
   } else {
     fb.textContent = (missing.length ? `Du manglede ${missing.length} ord (vist med rødt).` : "Alle ord fundet!") + review;
@@ -1292,8 +1292,8 @@ function hkCheck() {
   const fb = $("hk-feedback");
   const sign = pts >= 0 ? "+" : "−";
   if (!total && perfect) fb.textContent = `Rigtigt — “${e.w.toUpperCase()}” har ingen hooks! ${sign}${Math.abs(pts)} point`;
-  else if (perfect) fb.textContent = `Perfekt! Alle ${total} hooks · ${sign}${Math.abs(pts)} point (heraf ${bonus} i bonus)`;
-  else fb.textContent = `${hits} af ${total} hooks${wrong ? ` · ${wrong} forkert${wrong === 1 ? "" : "e"} (${wrong * HK_WRONG})` : ""} · ${sign}${Math.abs(pts)} point`;
+  else if (perfect) fb.textContent = `Perfekt! ${total === 1 ? "Hooket er fundet" : `Alle ${total} hooks`} · ${sign}${Math.abs(pts)} point (heraf ${bonus} i bonus)`;
+  else fb.textContent = `${hits} af ${total} ${total === 1 ? "hook" : "hooks"}${wrong ? ` · ${wrong} forkert${wrong === 1 ? "" : "e"} (${wrong * HK_WRONG})` : ""} · ${sign}${Math.abs(pts)} point`;
   fb.className = "feedback " + (perfect ? "good" : pts > 0 ? "" : "bad");
 
   const render = () => {
