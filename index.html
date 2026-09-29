@@ -3,11 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scrabbletræneren · Dansk Scrabble</title>
-<link rel="stylesheet" href="css/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23f3e5c0'/><text x='50' y='68' font-size='58' text-anchor='middle' font-family='Georgia' fill='%23222'>Å</text><text x='82' y='88' font-size='24' text-anchor='middle' font-family='Georgia' fill='%23222'>4</text></svg>">
+<title>Scrabbletræneren</title>
+<meta name="description" content="Træning for danske scrabblespillere: anagrammer, turneringstræning, miniord, kroge og orddommer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Roboto+Slab:wght@300&display=swap">
+<link rel="stylesheet" href="css/page.css">
+<link rel="stylesheet" href="css/scrabbletraener.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23555'/><rect x='18' y='18' width='64' height='64' rx='4' fill='none' stroke='white' stroke-width='5'/><text x='47' y='66' font-size='44' text-anchor='middle' font-family='Georgia' fill='white'>S</text><text x='70' y='74' font-size='16' text-anchor='middle' font-family='Georgia' fill='white'>2</text></svg>">
 </head>
 <body>
+<header class="site-header">
+  <p class="site-title"><a href="./">Scrabbletræneren</a></p>
+  <p class="site-description">Træning for danske turneringsspillere</p>
+</header>
+<main>
+  <article class="hentry">
+    <h1 class="entry-title">Træning</h1>
+    <div class="entry-content">
+      <p>Anagrammer, turneringstræning, miniord og kroge — med ordlisten fra Retskrivningsordbogen (COR 1.5). Din statistik gemmes kun i din egen browser.</p>
+<div class="st-app">
 <header>
   <div class="brand">
     <span class="brand-tiles">
@@ -69,7 +84,7 @@
     <p class="hint" id="an-info" aria-live="polite"></p>
 
     <form id="an-form" class="word-form" autocomplete="off">
-      <input id="an-input" type="text" placeholder="Skriv eller tryk på brikkerne" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
+      <input id="an-input" type="text" placeholder="Skriv eller tryk" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
       <button type="button" class="secondary rack-shuffle" aria-label="Bland brikkerne">Bland</button>
       <button type="submit" class="primary">Læg</button>
     </form>
@@ -136,7 +151,7 @@
       <div class="rack" id="tu-rack" role="group" aria-label="Dine brikker — tryk for at lægge dem"></div>
       <p class="hint" id="tu-info" aria-live="polite"></p>
       <form id="tu-form" class="word-form" autocomplete="off">
-        <input id="tu-input" type="text" placeholder="Skriv eller tryk på brikkerne" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
+        <input id="tu-input" type="text" placeholder="Skriv eller tryk" spellcheck="false" autocapitalize="off" aria-label="Dit ord">
         <button type="button" class="secondary rack-shuffle" aria-label="Bland brikkerne">Bland</button>
         <button type="submit" class="primary">Læg</button>
       </form>
@@ -240,7 +255,14 @@
   <p>Uofficiel træner til medlemmer af <a href="https://scrabbleforening.wordpress.com/" target="_blank" rel="noopener">Dansk Scrabble Forening</a>.
   Ordgrundlag: <a href="https://ordregister.dk/" target="_blank" rel="noopener">Det Centrale Ordregister</a> (CC0) — normerede former + genitiver, afstemt med foreningens officielle 2–4-bogstavslister.</p>
 </footer>
+</div>
 
-<script type="module" src="js/app.js"></script>
+    </div>
+  </article>
+</main>
+<footer class="site-footer">
+  Scrabbletræneren · uofficielt træningsværktøj · <a href="https://github.com/hindbaer550/scrabbletraener">kildekode på GitHub</a>
+</footer>
+<script src="js/scrabbletraener.js"></script>
 </body>
 </html>
