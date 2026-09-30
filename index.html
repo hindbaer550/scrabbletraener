@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scrabbletræneren</title>
-<meta name="description" content="Træning for danske scrabblespillere: anagrammer, dyst mod dig selv, foreningens ordlister, hooks og orddommer.">
+<meta name="description" content="Træning for danske scrabblespillere: anagrammer, dyst, foreningens ordlister, bingo-tjek og orddommer.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Roboto+Slab:wght@300&display=swap">
@@ -21,7 +21,7 @@
   <article class="hentry">
     <h1 class="entry-title">Træning</h1>
     <div class="entry-content">
-      <p>Anagrammer, dyst mod dig selv, foreningens ordlister og hooks — med ordlisten fra Retskrivningsordbogen (COR 1.5). Din statistik gemmes kun i din egen browser.</p>
+      <p>Anagrammer, dyst mod dig selv eller en ven, foreningens ordlister og bingo-tjek — med ordlisten fra Retskrivningsordbogen (COR 1.5). Din statistik gemmes kun i din egen browser.</p>
 <div class="st-app">
 <header>
   <div class="brand">
@@ -37,7 +37,7 @@
     <button role="tab" id="tab-anagram" data-view="anagram" aria-controls="view-anagram" aria-selected="true" class="active">Anagramjagt</button>
     <button role="tab" id="tab-turnering" data-view="turnering" aria-controls="view-turnering" aria-selected="false" tabindex="-1">Dyst</button>
     <button role="tab" id="tab-lister" data-view="lister" aria-controls="view-lister" aria-selected="false" tabindex="-1">Ordlister</button>
-    <button role="tab" id="tab-hooks" data-view="hooks" aria-controls="view-hooks" aria-selected="false" tabindex="-1">Hooks</button>
+    <button role="tab" id="tab-bingo" data-view="bingo" aria-controls="view-bingo" aria-selected="false" tabindex="-1">Er der en bingo?</button>
     <button role="tab" id="tab-dommer" data-view="dommer" aria-controls="view-dommer" aria-selected="false" tabindex="-1">Orddommer</button>
     <button role="tab" id="tab-stats" data-view="stats" aria-controls="view-stats" aria-selected="false" tabindex="-1">Statistik</button>
   </nav>
@@ -257,52 +257,17 @@
     </div>
   </section>
 
-  <!-- HOOKS -->
-  <section id="view-hooks" class="view panel" role="tabpanel" aria-labelledby="tab-hooks" hidden>
-    <div class="toolbar">
-      <label>Ordlængde
-        <select id="hk-len">
-          <option value="24" selected>2–4 blandet</option>
-          <option value="2">2 bogstaver</option>
-          <option value="3">3 bogstaver</option>
-          <option value="4">4 bogstaver</option>
-          <option value="5">5 bogstaver</option>
-        </select>
-      </label>
-      <label>Udvalg
-        <select id="hk-mode">
-          <option value="surprise" selected>Overraskende</option>
-          <option value="points">Pointgivende</option>
-          <option value="random">Tilfældige</option>
-        </select>
-      </label>
-      <span class="spacer"></span>
-      <span class="hk-meta"><span id="hk-streak" class="streak" aria-label="Perfekte runder i træk"></span>
-      <span id="hk-score" class="score" aria-label="Point i alt">0 p</span></span>
-    </div>
-    <p class="hint">Hvilke bogstaver kan sættes <strong>foran</strong> og <strong>bagpå</strong>? Sjældne hooks og tunge bogstaver giver flest point, et forkert bogstav koster 3. Nogle ord har ingen hooks — så er det rigtige svar ikke at vælge noget.</p>
-
-    <div class="rack big hook-word" id="hk-word" aria-live="polite"></div>
-    <p class="hint center" id="hk-info"></p>
-
-    <div class="hook-sides">
-      <div class="hook-side active" data-side="front">
-        <button type="button" class="hook-label" data-side="front">← Foran <span class="hook-count" id="hk-count-front"></span></button>
-        <div class="letters" id="hk-front" role="group" aria-label="Bogstaver der kan sættes foran"></div>
-      </div>
-      <div class="hook-side" data-side="back">
-        <button type="button" class="hook-label" data-side="back">Bagpå → <span class="hook-count" id="hk-count-back"></span></button>
-        <div class="letters" id="hk-back" role="group" aria-label="Bogstaver der kan sættes bagpå"></div>
-      </div>
-    </div>
-    <p class="hint">Tastatur: skriv bogstaver, <kbd>←</kbd>/<kbd>→</kbd> skifter side, <kbd>Enter</kbd> tjekker og går videre.</p>
-
-    <p class="feedback" id="hk-feedback" aria-live="polite">&nbsp;</p>
-    <div id="hk-result"></div>
-    <div class="actions">
-      <button id="hk-check" class="primary">Tjek</button>
-      <button id="hk-next" class="secondary">Næste ord →</button>
-    </div>
+  <!-- ER DER EN BINGO? -->
+  <section id="view-bingo" class="view panel" role="tabpanel" aria-labelledby="tab-bingo" hidden>
+    <p class="hint">Skriv dine 7 bogstaver, så viser vi alle gyldige bingoer. Brug <kbd>?</kbd> for en blank brik (højst 2).</p>
+    <form id="bi-form" class="word-form" autocomplete="off">
+      <input id="bi-input" type="text" maxlength="9" placeholder="fx AEILNRS" spellcheck="false" autocapitalize="off" aria-label="Dine 7 bogstaver">
+      <button type="button" id="bi-random" class="secondary">Tilfældigt</button>
+      <button type="submit" class="primary">Tjek</button>
+    </form>
+    <div class="rack big" id="bi-rack"></div>
+    <p class="feedback" id="bi-feedback" aria-live="polite">&nbsp;</p>
+    <div id="bi-result"></div>
   </section>
 
   <!-- ORDDOMMER -->

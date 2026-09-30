@@ -176,6 +176,7 @@
 .st-app .who.hit { color: var(--good); font-weight: 700; }
 .st-app .who.miss { color: var(--muted); }
 .st-app .stat.winner { outline: 3px solid var(--gold); }
+.st-app #bi-result .show-all { margin-top: 8px; align-self: flex-start; }
 .st-app .hook-word { align-items: center; }
 .st-app .hook-slot { background: transparent; border: 2px dashed var(--tile-edge); color: var(--tile-edge); }
 .st-app .center { text-align: center; }
